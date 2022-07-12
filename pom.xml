@@ -7,7 +7,7 @@
     <groupId>com.eficode.atlassian</groupId>
     <artifactId>jirainstancemanger</artifactId>
     <version>1.0-SNAPSHOT</version>
-    <description>POM DESCRIPTION</description>
+    <description>A groovy library for interacting with Jira REST API. NOT FOR PRODUCTION USER</description>
     <dependencies>
         <dependency>
             <groupId>com.konghq</groupId>
