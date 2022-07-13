@@ -27,8 +27,8 @@ jobs:
         server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
         settings-path: ${{ github.workspace }} # location for the settings.xml file
 
-    - name: Compile Groovy code
-      run:  mvn gplus:compile
+    - name: Compile Groovy code and generate sources
+      run: mvn gplus:compile generate-sources
 
     - name: Publish Package to Github Maven Repo
       run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml
