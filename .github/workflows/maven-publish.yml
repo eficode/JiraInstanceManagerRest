@@ -52,7 +52,7 @@ jobs:
         mkdir -p repository
         mvn install:install-file -DpomFile=pom.xml -DlocalRepositoryPath=repository/ -Dfile="$MAINJAR" -Dsources="$SOURCEJAR" -DgeneratePom=true -DcreateChecksum=true
 
-  - uses: stefanzweifel/git-auto-commit-action@v4
+    - uses: stefanzweifel/git-auto-commit-action@v4
       with:
         commit_message: Updated repository with JARs
         file_pattern: repository/*
