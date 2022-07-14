@@ -28,9 +28,15 @@ jobs:
         settings-path: ${{ github.workspace }} # location for the settings.xml file
 
     - name: Compile Groovy code and generate sources
-      run: mvn gplus:compile generate-sources
+      run: |
+        mvn gplus:compile generate-sources package
+        MAINJAR=$(ls -1 *.jar  | grep -v sources\.jar) 
+        echo $MAINJAR
+        echo "::set-output name=MAINJAR::$MAINJAR"
 
     - name: Publish Package to Github Maven Repo
       run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml
       env:
         GITHUB_TOKEN: ${{ github.token }}
+
+#  mvn install:install-file -DgroupId=com.eficode.atlassian -DartifactId=jirainstancemanger -Dversion=1.0-SNAPSHOT -Dfile=../jirainstancemanger-1.0-SNAPSHOT.jar  -DgeneratePom=true -DlocalRepositoryPath=.  -DcreateChecksum=true -Dpackaging=jar -Dsources=../jirainstancemanger-1.0-SNAPSHOT-sources.jar
