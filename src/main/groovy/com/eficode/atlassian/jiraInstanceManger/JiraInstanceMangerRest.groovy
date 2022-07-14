@@ -1,6 +1,5 @@
 package com.eficode.atlassian.jiraInstanceManger
 
-import groovy.util.MapEntry
 import groovy.json.JsonSlurper
 import kong.unirest.*
 import org.apache.groovy.json.internal.LazyMap
