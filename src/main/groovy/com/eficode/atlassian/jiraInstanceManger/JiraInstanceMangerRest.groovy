@@ -11,11 +11,11 @@ import unirest.shaded.org.apache.http.NoHttpResponseException
 final class JiraInstanceMangerRest {
 
     static Logger log = LoggerFactory.getLogger(JiraInstanceMangerRest.class)
-    static String baseUrl = "http://localhost:8080"
+    public static String baseUrl = "http://localhost:8080"
     static Cookies cookies
-    static String adminUsername = "admin"
-    static String adminPassword = "admin"
-    static boolean useSamlNoSso = false //Not tested
+    public static String adminUsername = "admin"
+    public static String adminPassword = "admin"
+    public static boolean useSamlNoSso = false //Not tested
 
 
     /**
@@ -487,6 +487,7 @@ final class JiraInstanceMangerRest {
         }
 
         if (System.currentTimeMillis() > startTime + 60000) {
+
             throw new NoHttpResponseException("Timeout waiting for JIRA Setup dialog")
         }
 

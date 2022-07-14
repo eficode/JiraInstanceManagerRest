@@ -14,7 +14,7 @@ jobs:
 
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
       packages: write
 
     steps:
@@ -27,8 +27,25 @@ jobs:
         server-id: github # Value of the distributionManagement/repository/id field of the pom.xml
         settings-path: ${{ github.workspace }} # location for the settings.xml file
 
-    - name: Compile Groovy code
-      run:  mvn gplus:compile
+    - name: Compile Groovy code and generate sources
+      run: mvn gplus:compile generate-sources package
+
+
+    - name: Publish Package to Github Repo Branch
+      run: |
+        MAINJAR=$(ls -1 target/*.jar  | grep -v sources\.jar) 
+        SOURCEJAR=$(ls -1 target/*.jar  | grep sources\.jar) 
+        VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
+        echo Main JAR: $MAINJAR
+        echo Source JAR: $SOURCEJAR
+        echo Version: $VERSION
+        mkdir -p repository
+        mvn install:install-file -DpomFile=pom.xml -DlocalRepositoryPath=repository/ -Dfile="$MAINJAR" -Dsources="$SOURCEJAR" -DgeneratePom=true -DcreateChecksum=true
+
+    - uses: stefanzweifel/git-auto-commit-action@v4
+      with:
+        commit_message: Updated repository with JARs
+        file_pattern: repository/*
 
     - name: Publish Package to Github Maven Repo
       run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml
