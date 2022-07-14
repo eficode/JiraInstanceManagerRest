@@ -35,8 +35,20 @@ jobs:
         pwd
         ls -l
         MAINJAR=$(ls -1 *.jar  | grep -v sources\.jar) 
-        echo $MAINJAR
+        SOURCEJAR=$(ls -1 *.jar  | grep sources\.jar) 
+        echo Main JAR: $MAINJAR
+        echo Source JAR: SOURCEJAR
         echo "::set-output name=MAINJAR::$MAINJAR"
+        echo "::set-output name=SOURCEJAR::SOURCEJAR"
+
+    - name: Publish Package to Github Repo Branch
+      run: |
+        pwd
+        ls -l
+        cd target
+        echo Main JAR: $MAINJAR
+        echo Source JAR: SOURCEJAR
+        
 
     - name: Publish Package to Github Maven Repo
       run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml
