@@ -51,9 +51,17 @@ jobs:
         
         git config user.name github-actions
         git config user.email github-actions@github.com
+        echo Running git fetch
+        git fetch
+        echo Stashing current changes
         git stash
+        echo Checking out Packages repo
         git checkout packages
+        echo Applying stash
         git stash apply
+        echo Adding repository files to git
         git add repository/*
+        echo Committing changes
         git commit -m "Updated packages"
+        echo Pushing changes
         git push
