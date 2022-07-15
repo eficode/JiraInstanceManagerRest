@@ -58,7 +58,7 @@ jobs:
         echo Checking out Packages repo
         git checkout packages
         echo Applying stash - ignoring errors
-        git stash apply ; true
+        git stash apply || true
         echo Adding repository files to git
         git add repository/*
         echo Committing changes
