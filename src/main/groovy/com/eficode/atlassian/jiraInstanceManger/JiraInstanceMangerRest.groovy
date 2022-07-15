@@ -11,7 +11,7 @@ import unirest.shaded.org.apache.http.NoHttpResponseException
 final class JiraInstanceMangerRest {
 
     static Logger log = LoggerFactory.getLogger(JiraInstanceMangerRest.class)
-    public static String baseUrl = "http://localhost:80"
+    public static String baseUrl = "http://localhost:8080"
     static Cookies cookies
     public static String adminUsername = "admin"
     public static String adminPassword = "admin"
@@ -19,7 +19,7 @@ final class JiraInstanceMangerRest {
 
 
     /**
-     * Setup JiraInstanceMangerRest with admin/admin as credentials
+     * Setup JiraInstanceMangerRest with admin/admin as credentials.
      * @param BaseUrl Defaults to http://localhost:8080
      */
     JiraInstanceMangerRest(String BaseUrl = baseUrl) {
