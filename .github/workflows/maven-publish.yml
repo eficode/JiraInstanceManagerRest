@@ -46,16 +46,22 @@ jobs:
         mvn install:install-file -DpomFile=pom.xml -DlocalRepositoryPath=repository/ -Dfile="$MAINJAR" -Dsources="$SOURCEJAR" -DgeneratePom=true -DcreateChecksum=true
         echo Removing all other files
         ls | grep -xv "repository" | xargs rm -rf
+        git stash
 
       #Manually first (once) set up an orphaned branch:
       # git switch --orphan packages
       # git commit --allow-empty -m "Initial commit on packages branch"
       # git push github packages:packages
 
+
     - name: Check out packages branch
       uses: actions/checkout@v3
       with:
         ref: packages
+
+    - name: Restore stashed changes
+      run: |
+          git stash apply
 
     - name: Publish package to packages branch
       uses: stefanzweifel/git-auto-commit-action@v4
