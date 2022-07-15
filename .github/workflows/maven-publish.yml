@@ -39,7 +39,7 @@ jobs:
     # git commit --allow-empty -m "Initial commit on packages branch"
     # git push github packages:packages
 
-    - name: Install Package to repository directory
+    - name: Install Package to packages branch
       run: |  
         MAINJAR=$(ls -1 target/*.jar  | grep -v sources\.jar) 
         SOURCEJAR=$(ls -1 target/*.jar  | grep sources\.jar) 
@@ -68,3 +68,4 @@ jobs:
         git commit -m "Updated packages"
         echo Pushing changes
         git push
+

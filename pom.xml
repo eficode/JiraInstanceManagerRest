@@ -8,6 +8,7 @@
     <artifactId>jirainstancemanger</artifactId>
     <version>1.0.1-SNAPSHOT</version>
     <description>A groovy library for interacting with Jira REST API. NOT FOR PRODUCTION USER</description>
+    
     <dependencies>
         <dependency>
             <groupId>com.konghq</groupId>
