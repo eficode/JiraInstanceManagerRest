@@ -19,7 +19,7 @@ final class JiraInstanceMangerRest {
 
 
     /**
-     * Setup JiraInstanceMangerRest with admin/admin as credentials
+     * Setup JiraInstanceMangerRest with admin/admin as credentials.
      * @param BaseUrl Defaults to http://localhost:8080
      */
     JiraInstanceMangerRest(String BaseUrl = baseUrl) {
