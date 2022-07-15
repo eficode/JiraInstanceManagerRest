@@ -47,11 +47,21 @@ jobs:
         echo Removing all other files
         ls | grep -xv "repository" | xargs rm -rf
 
+      #Manually first (once) set up an orphaned branch:
+      # git switch --orphan packages
+      # git commit --allow-empty -m "Initial commit on packages branch"
+      # git push github packages:packages
+
+    - name: Check out packages branch
+      uses: actions/checkout@v3
+      with:
+        ref: packages
+
     - name: Publish package to packages branch
       uses: stefanzweifel/git-auto-commit-action@v4
       with:
         commit_message: Updated repository with JARs
         file_pattern: repository/*
-        branch: packages
-        create_branch: true
+        #branch: packages
+        #create_branch: true
 
