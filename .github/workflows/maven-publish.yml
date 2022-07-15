@@ -57,8 +57,9 @@ jobs:
         git stash
         echo Checking out Packages repo
         git checkout packages
-        echo Applying stash - ignoring errors
-        git stash apply || true
+        echo Applying stash, overwriting any checked out changes
+        git checkout stash -- .
+        git reset
         echo Adding repository files to git
         git add repository/*
         echo Committing changes
