@@ -27,10 +27,10 @@ jobs:
     - name: Compile Groovy code and generate sources
       run: mvn gplus:compile generate-sources package
 
-    - name: Publish Package to Github Maven Repo
-      run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml
-      env:
-        GITHUB_TOKEN: ${{ github.token }}
+    #- name: Publish Package to Github Maven Repo
+    #  run: mvn deploy -s $GITHUB_WORKSPACE/settings.xml
+    #  env:
+    #    GITHUB_TOKEN: ${{ github.token }}
 
       #Manually first (once) set up an orphaned branch:
       # git switch --orphan packages
@@ -57,8 +57,8 @@ jobs:
         git stash
         echo Checking out Packages repo
         git checkout packages
-        echo Applying stash
-        git stash apply
+        echo Applying stash - ignoring errors
+        git stash apply ; true
         echo Adding repository files to git
         git add repository/*
         echo Committing changes
