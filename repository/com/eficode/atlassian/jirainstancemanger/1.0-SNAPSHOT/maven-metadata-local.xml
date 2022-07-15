@@ -4,9 +4,13 @@
   <artifactId>jirainstancemanger</artifactId>
   <versioning>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
     <lastUpdated>20220715152353</lastUpdated>
 =======
     <lastUpdated>20220715153151</lastUpdated>
+>>>>>>> Stashed changes
+=======
+    <lastUpdated>20220715155635</lastUpdated>
 >>>>>>> Stashed changes
     <snapshot>
       <localCopy>true</localCopy>
@@ -17,27 +21,39 @@
         <extension>jar</extension>
         <value>1.0-SNAPSHOT</value>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         <updated>20220715152353</updated>
 =======
         <updated>20220715153151</updated>
+>>>>>>> Stashed changes
+=======
+        <updated>20220715155635</updated>
 >>>>>>> Stashed changes
       </snapshotVersion>
       <snapshotVersion>
         <extension>jar</extension>
         <value>1.0-SNAPSHOT</value>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         <updated>20220715152353</updated>
 =======
         <updated>20220715153151</updated>
+>>>>>>> Stashed changes
+=======
+        <updated>20220715155635</updated>
 >>>>>>> Stashed changes
       </snapshotVersion>
       <snapshotVersion>
         <extension>pom</extension>
         <value>1.0-SNAPSHOT</value>
 <<<<<<< Updated upstream
+<<<<<<< Updated upstream
         <updated>20220715152353</updated>
 =======
         <updated>20220715153151</updated>
+>>>>>>> Stashed changes
+=======
+        <updated>20220715155635</updated>
 >>>>>>> Stashed changes
       </snapshotVersion>
     </snapshotVersions>
