@@ -39,7 +39,36 @@ Do you have a workload in JIRA that depends heavily on scripted customisations?
 With docker and SR you can automate the setup of the workload and then run Spoc/Junit tests on it to confirm any changes have the expected outcomes.
 
 
-## Now what?
-The methods are heavily documented so just get started!
+## Adding JR as a dependency
 
-If you want some inspiration you can have a look at: examples/Configure a blank JIRA.groovy
+JR packages are published to a separate branch in the JR repository called '[packages](https://github.com/eficode/JiraInstanceMangerRest/tree/packages/repository/com/eficode/atlassian/jirainstancemanger)'. **Check this branch for the most up to date version number**
+
+### Maven (POM)
+```XML
+<dependencies>
+   <dependency>
+       <groupId>com.eficode.atlassian</groupId>
+       <artifactId>jirainstancemanger</artifactId>
+       <version>1.0.1-SNAPSHOT</version>
+   </dependency>
+</dependencies>
+...
+<repositories>            
+    <repository>
+           <id>github-jiraManagerRest</id>
+           <url>https://github.com/eficode/JiraInstanceMangerRest/raw/packages/repository/</url>
+       </repository>
+</repositories>
+```
+
+
+### Groovy (Grape)
+
+```Groovy
+@GrabResolver(name='github', root='https://github.com/eficode/JiraInstanceMangerRest/raw/packages/repository/')  
+@Grab(group='com.eficode.atlassian', module='jirainstancemanger', version='1.0.1-SNAPSHOT')  
+  
+import com.eficode.atlassian.jiraInstanceManger.JiraInstanceMangerRest  
+  
+JiraInstanceMangerRest instanceManager = new JiraInstanceMangerRest()
+```
