@@ -964,7 +964,7 @@ final class JiraInstanceMangerRest {
 
         if (repoUrl) {
             installScript += """
-            @GrabResolver(root='$repoUrl')
+            @GrabResolver(root='$repoUrl', name='$module-repo')
             """
         }
 
