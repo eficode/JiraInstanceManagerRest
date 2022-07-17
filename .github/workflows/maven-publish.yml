@@ -33,7 +33,6 @@ jobs:
     #    GITHUB_TOKEN: ${{ github.token }}
 
 
-
     #Manually first (once) set up an orphaned branch:
     # git switch --orphan packages
     # git commit --allow-empty -m "Initial commit on packages branch"
@@ -53,19 +52,22 @@ jobs:
         
         git config user.name github-actions
         git config user.email github-actions@github.com
-        echo Running git fetch
-        git fetch
+        echo Adding repository dir temporarily so stash picks it up
+        git add repository
         echo Stashing current changes
         git stash
+        echo Running git fetch
+        git fetch
         echo Checking out Packages repo
         git checkout packages
         echo Applying stash, overwriting any checked out changes
         git checkout stash -- .
+        echo Running git reset, to ignore any automatically added tracked changes
         git reset
         echo Adding repository files to git
         git add repository/*
         echo Committing changes
-        git commit -m "Updated packages"
+        git commit -m "Updated packages to $VERSION"
         echo Pushing changes
         git push
 
