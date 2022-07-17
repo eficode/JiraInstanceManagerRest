@@ -38,6 +38,31 @@ class JiraInstanceManagerRestSpec extends Specification {
     }
 
 
+    def "Test Installation of Grapes"() {
+
+        setup:
+        JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+
+        String grapeGroup = "org.apache.httpcomponents"
+        String grapeModule = "httpclient"
+        String grapeVersion = "4.5.13"
+        String importTest = "import org.apache.http.client.methods.HttpGet"
+
+        String importTestScript = """
+        @Grab(group="$grapeGroup", module ="$grapeModule", version = "$grapeVersion")
+        $importTest
+
+        """
+
+
+        expect:
+        jira.installGrapeDependency(grapeGroup, grapeModule, grapeVersion)
+        jira.clearCodeCaches()
+        !jira.executeLocalScriptFile(importTestScript).errors
+
+
+    }
+
     def "Test getting arbitrary user cookies"() {
 
 

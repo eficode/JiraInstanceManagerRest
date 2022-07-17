@@ -949,4 +949,37 @@ final class JiraInstanceMangerRest {
     }
 
 
+    /**
+     * Installs a Grape dependency
+     * Note clearCodeCaches() might needed to run after to apply changes
+     * @param group
+     * @param module
+     * @param version
+     * @param repoUrl
+     * @return true on success
+     */
+    boolean installGrapeDependency(String group, String module, String version, String repoUrl = "") {
+
+        String installScript = ""
+
+        if (repoUrl) {
+            installScript += """
+            @GrabResolver(root='$repoUrl')
+            """
+        }
+
+        installScript += """
+            @Grab(group='$group', module='$module', version='$version')
+            
+            import java.util.ArrayList //Something must be imported or script will fail
+        """
+
+        return !executeLocalScriptFile(installScript).errors
+
+
+    }
+
+
+
+
 }
