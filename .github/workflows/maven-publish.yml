@@ -1,4 +1,4 @@
-name: Maven Package
+name: Updated repository in packages branch
 
 on:
   workflow_dispatch:
