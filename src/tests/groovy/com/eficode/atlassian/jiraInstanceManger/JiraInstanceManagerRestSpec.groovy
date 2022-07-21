@@ -2,14 +2,6 @@ package com.eficode.atlassian.jiraInstanceManger
 
 import com.eficode.atlassian.jiraInstanceManger.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManger.beans.ProjectBean
-
-/*
-@Grapes(
-        @Grab(group = 'com.konghq', module = 'unirest-java', version = '3.13.6', classifier = 'standalone')
-)
-
- */
-
 import kong.unirest.Cookies
 import kong.unirest.HttpResponse
 import kong.unirest.Unirest
