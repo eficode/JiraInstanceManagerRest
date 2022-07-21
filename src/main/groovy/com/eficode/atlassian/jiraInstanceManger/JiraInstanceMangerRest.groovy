@@ -1,7 +1,24 @@
 package com.eficode.atlassian.jiraInstanceManger
 
+/*
+//Seems to break SPOC testing
+@Grapes(
+        @Grab(group = 'com.konghq', module = 'unirest-java', version = '3.13.6', classifier = 'standalone')
+)
+*/
+
+
+import com.eficode.atlassian.jiraInstanceManger.beans.ObjectSchemaBean
+import com.eficode.atlassian.jiraInstanceManger.beans.ProjectBean
+import com.fasterxml.jackson.databind.ObjectMapper
 import groovy.json.JsonSlurper
-import kong.unirest.*
+import kong.unirest.Cookie
+import kong.unirest.Cookies
+import kong.unirest.GetRequest
+import kong.unirest.HttpResponse
+import kong.unirest.Unirest
+import kong.unirest.UnirestException
+import kong.unirest.UnirestInstance
 import org.apache.groovy.json.internal.LazyMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -126,14 +143,15 @@ final class JiraInstanceMangerRest {
      * Returns Array of insight schemas
      * @return
      */
-    static ArrayList<Map> getInsightSchemas() {
+    static ArrayList<ObjectSchemaBean> getInsightSchemas() {
 
         log.info("Getting Insight Schemas")
 
         Cookies cookies = acquireWebSudoCookies()
         ArrayList<Map> rawMap = Unirest.get("/rest/insight/1.0/objectschema/list").cookie(cookies).asJson().body.object.toMap().objectschemas as ArrayList<Map>
-        log.trace("\tGot:" + rawMap.collect { [id: it?.id, key: it?.objectSchemaKey, name: it?.name, description: it?.description] })
-        return rawMap
+        ArrayList<ObjectSchemaBean> schemaBeans = rawMap.collect {ObjectSchemaBean.fromMap(it) }
+
+        return schemaBeans
 
     }
 
@@ -243,6 +261,20 @@ final class JiraInstanceMangerRest {
         return importProgress
         //Map importResponseMap = importResponse.body.object.toMap()
 
+    }
+
+
+    static boolean deleteInsightSchema(int schemaId) {
+
+        log.info("Deleting Insight Schema:" + schemaId)
+        cookies = acquireWebSudoCookies()
+        Map resultMap = Unirest.delete("/rest/insight/1.0/objectschema/" + schemaId)
+                .cookie(cookies)
+                .asJson().body.object.toMap()
+
+        log.trace("\tAPI returned:" + resultMap)
+        log.info("\tDelete status:" + resultMap?.status)
+        return resultMap?.status == "Ok"
     }
 
     /**
@@ -507,17 +539,109 @@ final class JiraInstanceMangerRest {
 
     }
 
+
+    String getAvailableProjectKey(String prefix) {
+
+        prefix = prefix.toUpperCase()
+
+        ArrayList<ProjectBean> existingProjects = projects.findAll { it.projectKey.startsWith(prefix) }
+
+        for (int i = 1; i <= 100; i++) {
+
+            if (!existingProjects.projectKey.contains(prefix + i)) {
+                return (prefix + i.toString())
+            }
+        }
+        throw new Exception("Could not find available project key with prefix:" + prefix)
+
+    }
+
+
     /**
      * This will create a sample JSM project using the "IT Service Management" template
+     * The project will contain issues
      * @param name Name of the new project
      * @param key Key of the new project
-     * @return A map containing the raw result from JIRAs api
-     *  returnMap.returnUrl -> link to the project
+     * @return A ProjectBean
      */
 
-    static Map createJsmProjectWithSampleData(String name, String key) {
+    static ProjectBean createJsmProjectWithSampleData(String name, String key) {
 
-        log.info("Creating Project $name ($key) with sample data")
+        return createSampleProject(name, key, "sd-demo-project-itil-v2")
+
+    }
+
+    /**
+     * This will create a sample JSM project using the "Insight IT Service Management" template
+     * An associated Insight Schema will also be created.
+     * The project will contain issues, and the schema will contain objects
+     * @param name Name of the new project
+     * @param key Key of the new project
+     * @return A map containing information about the Project and Schema
+     */
+
+    static Map createInsightProjectWithSampleData(String name, String key) {
+
+        ArrayList<Integer> preExistingSchemaIds = getInsightSchemas().id
+        ProjectBean projectBean = createSampleProject(name, key, "rlabs-project-template-itsm-demodata")
+        ObjectSchemaBean schemaBean = getInsightSchemas().find { !preExistingSchemaIds.contains(it.id) }
+
+        return [project: projectBean, schema: schemaBean]
+
+    }
+
+
+    /**
+     * Creates one of the template schemas, all but "empty" has objectTypes.
+     * None of the templates comes with objects
+     * @param name Schema name
+     * @param key Schema key
+     * @param template hr, empty, itassets, crm
+     * @return
+     */
+    ObjectSchemaBean createTemplateSchema(String name, String key, String template) {
+
+        assert ["hr", "empty", "itassets", "crm"].contains(template): "Unknown template type $template, valid choices are: hr, empty, itassets, crm"
+
+        log.info("\tWill create a new template schema")
+        log.debug("\t\tSchema name:" + name)
+        log.debug("\t\tSchema key:" + key)
+        log.debug("\t\tSchema template:" + template)
+
+        Map sampleSchemaMap = Unirest.post("/rest/insight/1.0/objectschemaimport/template")
+                .cookie(sudoCookies)
+                .contentType("application/json")
+                .body([
+                        "status"         : "ok",
+                        "name"           : name,
+                        "objectSchemaKey": key,
+                        "type"           : template
+
+                ]).asJson().body.object.toMap()
+
+        log.info("\tSchema created with status ${sampleSchemaMap.status} and Id: " + sampleSchemaMap.id)
+        assert sampleSchemaMap.status == "Ok", "Error creating sample schema:" + sampleSchemaMap?.errors?.values()?.join(",")
+
+
+        return ObjectSchemaBean.fromMap(sampleSchemaMap)
+    }
+
+
+    /**
+     * This will create a sample project using one of the project templates
+     * The project will contain issues
+     * @param name Name of the new project
+     * @param key Key of the new project
+     * @param template One of the predefined templates:<br>
+     *  IT Service management: sd-demo-project-itil-v2<br>
+     *  Insight IT Service Management: rlabs-project-template-itsm-demodata<br>
+     *  Project Management: core-demo-project<br>
+     * @return A ProjectBean
+     */
+    static ProjectBean createSampleProject(String name, String key, String template) {
+
+
+        log.info("Creating Project $name ($key) with sample data using template $template")
         HttpResponse createProjectResponse = Unirest.post("/rest/jira-importers-plugin/1.0/demo/create")
                 .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
                 .cookie(acquireWebSudoCookies())
@@ -526,16 +650,17 @@ final class JiraInstanceMangerRest {
                 .field("key", key.toUpperCase())
                 .field("lead", adminUsername)
                 .field("keyEdited", "false")
-                .field("projectTemplateWebItemKey", "sd-demo-project-itil-v2")
+                .field("projectTemplateWebItemKey", template)
                 .field("projectTemplateModuleKey", "undefined")
                 .asJson()
 
         assert createProjectResponse.status == 200, "Error creating project:" + createProjectResponse.body.toPrettyString()
 
         Map returnMap = createProjectResponse.body.object.toMap()
+        ProjectBean projectBean = returnMap as ProjectBean
 
-        log.info("\tCreated Project:" + baseUrl + returnMap.get("returnUrl"))
-        return returnMap
+        log.info("\tCreated Project:" + baseUrl + projectBean.returnUrl)
+        return projectBean
 
     }
 
@@ -547,7 +672,7 @@ final class JiraInstanceMangerRest {
      * @return A map containing the raw result from JIRAs api
      *  returnMap.returnUrl -> link to the project
      */
-    static Map createJsmProject(String name, String key) {
+    static ProjectBean createJsmProject(String name, String key) {
 
         log.info("Creating Project $name ($key)")
         HttpResponse createProjectResponse = Unirest.post("/rest/project-templates/1.0/templates")
@@ -564,10 +689,43 @@ final class JiraInstanceMangerRest {
         assert createProjectResponse.status == 200, "Error creating project:" + createProjectResponse.body.toPrettyString()
 
         Map returnMap = createProjectResponse.body.object.toMap()
+        ProjectBean projectBean = returnMap as ProjectBean
 
-        log.info("\tCreated Project:" + baseUrl + returnMap.get("returnUrl"))
+        log.info("\tCreated Project:" + baseUrl + projectBean.returnUrl)
 
-        return returnMap
+        return projectBean
+    }
+
+
+    ArrayList<ProjectBean> getProjects() {
+
+        log.info("Retrieving projects from " + baseUrl)
+        ArrayList<ProjectBean> projectBeans = []
+        ArrayList<Map> rawList = Unirest.get("/rest/api/2/project").cookie(acquireWebSudoCookies()).asJson().body.array.toList()
+        ArrayList<Map> massagedMap = rawList.collect { [returnUrl: "/projects/" + it.key, projectId: it.id as Integer, projectKey: it.key, projectName: it.name] }
+
+        log.info("\tGot ${massagedMap.size()} projects")
+        massagedMap.each {
+            log.trace("\t\tTransforming raw project data for " + it.projectKey)
+            projectBeans.add(ProjectBean.fromMap(it))
+        }
+
+
+        return projectBeans
+
+    }
+
+    boolean deleteProject(ProjectBean projectBean) {
+        return deleteProject(projectBean.projectId)
+    }
+
+    boolean deleteProject(def idOrKey) {
+
+        log.info("Deleting project:" + idOrKey.toString())
+        Integer deleteStatus = Unirest.delete("/rest/api/2/project/" + idOrKey.toString()).cookie(acquireWebSudoCookies()).asEmpty().status
+        return deleteStatus == 204
+
+
     }
 
     /**
@@ -956,15 +1114,16 @@ final class JiraInstanceMangerRest {
      * @param module
      * @param version
      * @param repoUrl
+     * @param classifier
      * @return true on success
      */
-    boolean installGrapeDependency(String group, String module, String version, String repoUrl = "") {
+    boolean installGrapeDependency(String group, String module, String version, String repoUrl = "", String classifier = "") {
 
         String installScript = ""
 
         if (repoUrl) {
             installScript += """
-            @GrabResolver(root='$repoUrl')
+            @GrabResolver(root='$repoUrl', name='$module-repo')
             """
         }
 
@@ -974,10 +1133,17 @@ final class JiraInstanceMangerRest {
             import java.util.ArrayList //Something must be imported or script will fail
         """
 
+        if (classifier) {
+            installScript = installScript.replaceFirst(/\)/, ", classifier = '$classifier' )")
+        }
+
+        log.trace("Installing Grape dependencies with script:")
+        installScript.eachLine {log.trace("\t" + it)}
         return !executeLocalScriptFile(installScript).errors
 
 
     }
+
 
 
 

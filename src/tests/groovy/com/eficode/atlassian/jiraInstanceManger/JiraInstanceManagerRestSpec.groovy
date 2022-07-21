@@ -1,9 +1,7 @@
 package com.eficode.atlassian.jiraInstanceManger
 
-@Grapes(
-        @Grab(group = 'com.konghq', module = 'unirest-java', version = '3.13.6', classifier = 'standalone')
-)
-
+import com.eficode.atlassian.jiraInstanceManger.beans.ObjectSchemaBean
+import com.eficode.atlassian.jiraInstanceManger.beans.ProjectBean
 import kong.unirest.Cookies
 import kong.unirest.HttpResponse
 import kong.unirest.Unirest
@@ -19,7 +17,7 @@ class JiraInstanceManagerRestSpec extends Specification {
     static Logger log = LoggerFactory.getLogger(JiraInstanceMangerRest.class)
 
     @Shared
-    static String baseUrl = "http://localhost:8080"
+    static String baseUrl = "http://jira.test.com:8080"
 
     @Shared
     static String restAdmin = "admin"
@@ -32,6 +30,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
     def setupSpec() {
 
+        JiraInstanceMangerRest.baseUrl = baseUrl
 
         Unirest.config().defaultBaseUrl(JiraInstanceMangerRest.baseUrl).setDefaultBasicAuth(restAdmin, restPw)
         sudoCookies = JiraInstanceMangerRest.acquireWebSudoCookies()
@@ -60,6 +59,17 @@ class JiraInstanceManagerRestSpec extends Specification {
         jira.clearCodeCaches()
         !jira.executeLocalScriptFile(importTestScript).errors
 
+
+    }
+
+    def "Simple getProjectsTest"() {
+
+        setup:
+        JiraInstanceMangerRest jiraR = new JiraInstanceMangerRest()
+
+        expect:
+        !jiraR.getProjects().empty
+        jiraR.getProjects().every {it instanceof ProjectBean}
 
     }
 
@@ -242,11 +252,54 @@ class JiraInstanceManagerRestSpec extends Specification {
 
     }
 
+    def "Test creation of Insight sample project"() {
+
+        setup: "Instantiate JiraInstanceManager"
+
+        log.info("Will test creation of Insight sample project")
+
+
+
+
+        JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+        jira.acquireWebSudoCookies()
+
+        String projectName = "Spoc Src Schema"
+        String projectKey = jira.getAvailableProjectKey("SSS")
+
+        ArrayList<Integer> preExistingSchemaIds = jira.getInsightSchemas().id
+
+        when:"When creating the project"
+        Map resultMap = jira.createInsightProjectWithSampleData(projectName, projectKey)
+
+        then: "Project and schema should be returned"
+        assert resultMap.project
+        assert resultMap.project.projectKey == projectKey
+        assert resultMap.project.projectName == projectName
+        assert resultMap.schema
+        assert ! preExistingSchemaIds.contains(resultMap.schema.id as int)
+        assert jira.projects.find {it.projectId == resultMap.project.projectId} : "getProjects() could not find project"
+        log.info("\tSchema and project successfully created")
+
+
+
+        cleanup:
+        jira.deleteInsightSchema(resultMap.schema.id as int)
+        jira.deleteProject(resultMap.project)
+
+
+
+
+
+    }
+
     def "Test Import and Export of Insight Object Schemas"() {
         setup: "Instantiate JiraInstanceManager"
 
         log.info("Will test export and import of insight object schemas")
 
+        JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+        jira.acquireWebSudoCookies()
 
         String srcSchemaName = "Spoc Src Schema"
         String srcSchemaKey = "SSS"
@@ -255,7 +308,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.debug("\t\tSource schema name:" + srcSchemaName)
         log.debug("\t\tSource schema key:" + srcSchemaKey)
         log.debug("\t\tSource schema template:" + srcSchemaTemplate)
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+
         Map sampleSchemaMap = Unirest.post("/rest/insight/1.0/objectschemaimport/template")
                 .cookie(sudoCookies)
                 .contentType("application/json")
@@ -303,6 +356,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         log.info("\tImport result:" + importResult?.result)
         String importSchemaId = importResult.resourceId
+
         String importFile = importResult.resultData.fileName as String
 
 
@@ -314,12 +368,17 @@ class JiraInstanceManagerRestSpec extends Specification {
 
 
         when: "Making sure getInsightSchemas() finds the schemas"
-        ArrayList<Map> schemas = JiraInstanceMangerRest.getInsightSchemas()
+        ArrayList<ObjectSchemaBean> schemas = JiraInstanceMangerRest.getInsightSchemas()
 
         log.trace("getInsightSchemas() returned schemas:" + schemas.name)
 
         then: "Should contain both schemas"
-        schemas.find { it.id == sampleSchemaMap.id && it.key == sampleSchemaMap.key }
+        assert schemas.find { it.id == sampleSchemaMap.id && it.objectSchemaKey == sampleSchemaMap.objectSchemaKey } : "Expected API to find source schema (Key: ${sampleSchemaMap.objectSchemaKey}, Id: ${sampleSchemaMap.id} )"
+        assert schemas.find {it.objectSchemaKey == srcSchemaKey + "IMP" }
+
+        expect: "Deleting the schema"
+        assert JiraInstanceMangerRest.deleteInsightSchema(sampleSchemaMap.id as int) : "Error deleting schema"
+        assert ! JiraInstanceMangerRest.getInsightSchemas().find { it.id == sampleSchemaMap.id && it.key == sampleSchemaMap.key } : "After schema deletion, API still says the schema exists"
 
 
         cleanup:
