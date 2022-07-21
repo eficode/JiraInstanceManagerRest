@@ -19,7 +19,7 @@ class JiraInstanceManagerRestSpec extends Specification {
     static Logger log = LoggerFactory.getLogger(JiraInstanceMangerRest.class)
 
     @Shared
-    static String baseUrl = "http://localhost:8080"
+    static String baseUrl = "http://jira.test.com:8080"
 
     @Shared
     static String restAdmin = "admin"
@@ -32,6 +32,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
     def setupSpec() {
 
+        JiraInstanceMangerRest.baseUrl = baseUrl
 
         Unirest.config().defaultBaseUrl(JiraInstanceMangerRest.baseUrl).setDefaultBasicAuth(restAdmin, restPw)
         sudoCookies = JiraInstanceMangerRest.acquireWebSudoCookies()
@@ -256,6 +257,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.debug("\t\tSource schema key:" + srcSchemaKey)
         log.debug("\t\tSource schema template:" + srcSchemaTemplate)
         JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+        jira.acquireWebSudoCookies()
         Map sampleSchemaMap = Unirest.post("/rest/insight/1.0/objectschemaimport/template")
                 .cookie(sudoCookies)
                 .contentType("application/json")
@@ -320,6 +322,11 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         then: "Should contain both schemas"
         schemas.find { it.id == sampleSchemaMap.id && it.key == sampleSchemaMap.key }
+
+
+        expect: "Deleting the schema"
+        assert JiraInstanceMangerRest.deleteInsightSchema(sampleSchemaMap.id as int) : "Error deleting schema"
+        assert ! JiraInstanceMangerRest.getInsightSchemas().find { it.id == sampleSchemaMap.id && it.key == sampleSchemaMap.key } : "After schema deletion, API still says the schema exists"
 
 
         cleanup:

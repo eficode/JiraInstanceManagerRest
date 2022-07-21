@@ -245,6 +245,20 @@ final class JiraInstanceMangerRest {
 
     }
 
+
+    static boolean deleteInsightSchema(int schemaId) {
+
+        log.info("Deleting Insight Schema:" + schemaId)
+        cookies = acquireWebSudoCookies()
+        Map resultMap = Unirest.delete("/rest/insight/1.0/objectschema/" + schemaId)
+                .cookie(cookies)
+                .asJson().body.object.toMap()
+
+        log.trace("\tAPI returned:" + resultMap)
+        log.info("\tDelete status:" + resultMap?.status)
+        return resultMap?.status == "Ok"
+    }
+
     /**
      * Install an App from Marketplace
      * @param appUrl Can be obtained by going to the marketplace listing of the app, checking its versions and getting the "Download" link URL
@@ -509,6 +523,8 @@ final class JiraInstanceMangerRest {
 
     /**
      * This will create a sample JSM project using the "IT Service Management" template
+     * An associated Insight Schema will also be created.
+     * The project will contain issues, and the schema will contain objects
      * @param name Name of the new project
      * @param key Key of the new project
      * @return A map containing the raw result from JIRAs api
