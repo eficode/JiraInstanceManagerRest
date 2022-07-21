@@ -8,7 +8,7 @@
     <artifactId>jirainstancemanger</artifactId>
     <version>1.0.3-SNAPSHOT</version>
     <description>A groovy library for interacting with Jira REST API. NOT FOR PRODUCTION USER</description>
-    
+
     <dependencies>
         <dependency>
             <groupId>com.konghq</groupId>
@@ -21,6 +21,7 @@
             <artifactId>slf4j-simple</artifactId>
             <version>1.7.36</version>
         </dependency>
+        <!--
         <dependency>
             <groupId>org.codehaus.groovy</groupId>
             <artifactId>groovy-all</artifactId>
@@ -28,13 +29,39 @@
             <type>pom</type>
             <scope>provided</scope>
         </dependency>
-        <!-- https://mvnrepository.com/artifact/org.spockframework/spock-core -->
+
         <dependency>
             <groupId>org.spockframework</groupId>
             <artifactId>spock-core</artifactId>
             <version>2.1-groovy-2.5</version>
             <scope>test</scope>
         </dependency>
+        -->
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.13.3</version>
+        </dependency>
+        <dependency>
+            <groupId>org.codehaus.groovy</groupId>
+            <artifactId>groovy-all</artifactId>
+            <version>3.0.11</version>
+            <type>pom</type>
+            <scope>provided</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.apache.ivy</groupId>
+            <artifactId>ivy</artifactId>
+            <version>2.5.0</version>
+        </dependency>
+        <dependency>
+            <groupId>org.spockframework</groupId>
+            <artifactId>spock-core</artifactId>
+            <version>2.2-M3-groovy-3.0</version>
+            <scope>test</scope>
+        </dependency>
+
     </dependencies>
 
     <distributionManagement>
@@ -47,7 +74,7 @@
 
 
     <build>
-        <sourceDirectory>${basedir}/src/main/groovy</sourceDirectory>
+        <!--sourceDirectory>${basedir}/src/main/groovy</sourceDirectory-->
         <plugins>
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
@@ -59,6 +86,7 @@
                         <phase>generate-sources</phase>
                         <goals>
                             <goal>jar-no-fork</goal>
+                            <goal>test-jar-no-fork</goal>
                         </goals>
                     </execution>
                 </executions>
@@ -70,29 +98,32 @@
                 <executions>
                     <execution>
                         <goals>
-                            <goal>execute</goal>
+                            <goal>addSources</goal>
+                            <goal>addTestSources</goal>
+                            <goal>compile</goal>
+                            <goal>compileTests</goal>
                         </goals>
                     </execution>
                 </executions>
                 <dependencies>
-                    <!--dependency>
+                    <dependency>
                         <groupId>org.codehaus.groovy</groupId>
-                        <artifactId>groovy-all</artifactId>
-                        <version>2.5.17</version>
-                        <scope>runtime</scope>
-                    </dependency-->
-                    <!--dependency>
-                        <groupId>org.apache.groovy</groupId>
                         <artifactId>groovy</artifactId>
-                        <version>2.5.17</version>
-
-                    </dependency-->
+                        <version>3.0.11</version>
+                        <scope>runtime</scope>
+                    </dependency>
                 </dependencies>
                 <!--configuration>
-                    <scripts>
-                        <script>src/main/groovy/Main.groovy</script>
-                    </scripts>
+                    <sources>
+                        <source>
+                            <directory>${project.basedir}/src/main/groovy</directory>
+                            <includes>
+                                <include>**/*.groovy</include>
+                            </includes>
+                        </source>
+                    </sources>
                 </configuration-->
+
             </plugin>
         </plugins>
     </build>
