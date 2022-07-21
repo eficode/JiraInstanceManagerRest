@@ -3,10 +3,10 @@ package com.eficode.atlassian.jiraInstanceManger.beans
 import com.fasterxml.jackson.databind.ObjectMapper
 
 class ProjectBean {
-    String returnUrl
-    Integer projectId
-    String projectKey
-    String projectName
+    public String returnUrl
+    public Integer projectId
+    public String projectKey
+    public String projectName
 
     static final ObjectMapper objectMapper = new ObjectMapper()
 

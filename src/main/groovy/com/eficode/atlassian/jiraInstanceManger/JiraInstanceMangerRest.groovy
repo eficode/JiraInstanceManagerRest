@@ -659,7 +659,8 @@ final class JiraInstanceMangerRest {
         Map returnMap = createProjectResponse.body.object.toMap()
         ProjectBean projectBean = returnMap as ProjectBean
 
-        log.info("\tCreated Project:" + baseUrl + projectBean.returnUrl)
+        log.info("\tCreated Project: ${projectBean.projectKey}")
+        log.info("\t\tURL:"+ (baseUrl + projectBean.returnUrl))
         return projectBean
 
     }

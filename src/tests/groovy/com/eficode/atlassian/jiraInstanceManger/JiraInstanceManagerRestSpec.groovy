@@ -73,6 +73,19 @@ class JiraInstanceManagerRestSpec extends Specification {
 
     }
 
+    def "Test createJsmProjectWithSampleData"() {
+
+        setup:
+        JiraInstanceMangerRest jiraR = new JiraInstanceMangerRest()
+        String projectKey = jiraR.getAvailableProjectKey("SPOC")
+
+        when:
+        ProjectBean projectBean = jiraR.createJsmProjectWithSampleData(projectKey, projectKey)
+
+        then:
+        projectBean != null
+    }
+
     def "Test getting arbitrary user cookies"() {
 
 
