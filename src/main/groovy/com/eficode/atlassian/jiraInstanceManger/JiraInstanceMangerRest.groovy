@@ -1,16 +1,16 @@
 package com.eficode.atlassian.jiraInstanceManger
-
 /*
 //Seems to break SPOC testing
 @Grapes(
         @Grab(group = 'com.konghq', module = 'unirest-java', version = '3.13.6', classifier = 'standalone')
 )
-*/
+ */
 
 
 import com.eficode.atlassian.jiraInstanceManger.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManger.beans.ProjectBean
 import com.fasterxml.jackson.databind.ObjectMapper
+import groovy.io.FileType
 import groovy.json.JsonSlurper
 import kong.unirest.Cookie
 import kong.unirest.Cookies
@@ -20,10 +20,13 @@ import kong.unirest.Unirest
 import kong.unirest.UnirestException
 import kong.unirest.UnirestInstance
 import org.apache.groovy.json.internal.LazyMap
+import org.codehaus.groovy.runtime.ResourceGroovyMethods
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import unirest.shaded.com.google.gson.JsonObject
 import unirest.shaded.org.apache.http.NoHttpResponseException
+
+import java.nio.file.StandardCopyOption
 
 final class JiraInstanceMangerRest {
 
@@ -149,7 +152,7 @@ final class JiraInstanceMangerRest {
 
         Cookies cookies = acquireWebSudoCookies()
         ArrayList<Map> rawMap = Unirest.get("/rest/insight/1.0/objectschema/list").cookie(cookies).asJson().body.object.toMap().objectschemas as ArrayList<Map>
-        ArrayList<ObjectSchemaBean> schemaBeans = rawMap.collect {ObjectSchemaBean.fromMap(it) }
+        ArrayList<ObjectSchemaBean> schemaBeans = rawMap.collect { ObjectSchemaBean.fromMap(it) }
 
         return schemaBeans
 
@@ -492,7 +495,7 @@ final class JiraInstanceMangerRest {
         long startTime = System.currentTimeMillis()
         Cookie xsrfCookie = null
 
-        while (startTime + 60000 > System.currentTimeMillis()) {
+        while (startTime + (3*60000) > System.currentTimeMillis()) {
             try {
                 HttpResponse<String> response = Unirest.get("/").asString()
 
@@ -523,11 +526,11 @@ final class JiraInstanceMangerRest {
             throw new NoHttpResponseException("Timeout waiting for JIRA Setup dialog")
         }
 
-        log.info("Setting up local H2 database, this will take a few minutes.")
+        log.info("Setting up local H2 database, this will take a several minutes.")
         HttpResponse setupDbResponse = Unirest.post("/secure/SetupDatabase.jspa")
                 .field("databaseOption", "internal")
                 .field("atl_token", xsrfCookie.value)
-                .socketTimeout(240000)
+                .socketTimeout((6 * 60000))
                 .asEmpty()
 
         assert setupDbResponse.status == 302
@@ -660,7 +663,7 @@ final class JiraInstanceMangerRest {
         ProjectBean projectBean = returnMap as ProjectBean
 
         log.info("\tCreated Project: ${projectBean.projectKey}")
-        log.info("\t\tURL:"+ (baseUrl + projectBean.returnUrl))
+        log.info("\t\tURL:" + (baseUrl + projectBean.returnUrl))
         return projectBean
 
     }
@@ -1109,6 +1112,57 @@ final class JiraInstanceMangerRest {
 
 
     /**
+     * WIP
+     * @param group
+     * @param module
+     * @param version
+     * @param repoUrl
+     * @return
+     */
+    boolean installGroovyJarSources(String group, String module, String version, String repoUrl = "https://repo1.maven.org/maven2/") {
+
+        log.info("Installing JAR source files")
+
+        AntBuilder ant = new AntBuilder()
+        UnirestInstance unirestInstance = Unirest.spawnInstance()
+        String jarName = "$module-$version-sources.jar"
+        String jarPath = repoUrl + group.replaceAll(/\./, "/") + "/" + module + "/" + version + "/" + jarName
+
+        log.info("\tFrom URL:" + jarPath)
+
+
+        File tempDir = File.createTempDir()
+        File extractDir = new File(tempDir.absolutePath + "/extract")
+        extractDir.mkdirs()
+
+        unirestInstance.get(jarPath).asFile(tempDir.absolutePath + "/" + jarName, StandardCopyOption.REPLACE_EXISTING).getBody()
+        File jarFile = new File(tempDir.absolutePath + "/" + jarName)
+        assert jarFile.canRead() && jarFile.isFile(): "Error downloading $jarPath"
+        log.info("\tDownload appears successful, extracting jar")
+
+        ant.unzip(src: jarFile.absolutePath, dest: extractDir.absolutePath)
+
+
+        File sourceRoot = new File(extractDir.absolutePath + "/" + group.split(/\./).first())
+        assert sourceRoot.exists() && sourceRoot.isDirectory()
+
+        Map<String, String> filesToUpload = [:]
+        sourceRoot.eachFileRecurse(FileType.FILES) { sourceFile ->
+
+            filesToUpload.put(sourceFile.absolutePath, ResourceGroovyMethods.relativePath(sourceRoot.parentFile, sourceFile))
+        }
+        log.info("\tGot ${filesToUpload.size()} files from JAR archive, uploading them now")
+
+
+        boolean uploadSuccess = updateScriptrunnerFiles(filesToUpload)
+
+        uploadSuccess ? log.info("\tFiles where successfully uploaded") : log.warn("\tError uploading source files")
+        tempDir.deleteDir()
+        return uploadSuccess
+
+    }
+
+    /**
      * Installs a Grape dependency
      * Note clearCodeCaches() might needed to run after to apply changes
      * @param group
@@ -1139,14 +1193,11 @@ final class JiraInstanceMangerRest {
         }
 
         log.trace("Installing Grape dependencies with script:")
-        installScript.eachLine {log.trace("\t" + it)}
+        installScript.eachLine { log.trace("\t" + it) }
         return !executeLocalScriptFile(installScript).errors
 
 
     }
-
-
-
 
 
 }

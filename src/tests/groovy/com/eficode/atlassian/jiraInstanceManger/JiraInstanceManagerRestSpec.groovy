@@ -37,6 +37,22 @@ class JiraInstanceManagerRestSpec extends Specification {
     }
 
 
+    def "Test installation of Jar sources"() {
+
+        setup:
+        JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+
+
+        String group = "com.eficode.atlassian"
+        String module = "jirainstancemanger"
+        String version = "1.0.3-SNAPSHOT"
+        String repoUrl = "https://github.com/eficode/JiraInstanceMangerRest/raw/packages/repository/"
+
+        expect:
+        jira.installGroovyJarSources(group, module, version, repoUrl)
+
+    }
+
     def "Test Installation of Grapes"() {
 
         setup:
