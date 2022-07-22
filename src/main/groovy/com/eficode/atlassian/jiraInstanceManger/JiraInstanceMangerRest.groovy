@@ -25,6 +25,7 @@ import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 import unirest.shaded.com.google.gson.JsonObject
 import unirest.shaded.org.apache.http.NoHttpResponseException
+import unirest.shaded.org.apache.http.conn.ConnectTimeoutException
 
 import java.nio.file.StandardCopyOption
 
@@ -515,7 +516,7 @@ final class JiraInstanceMangerRest {
 
             } catch (UnirestException ex) {
 
-                assert ex.cause.class == NoHttpResponseException
+                assert ex.cause.class == NoHttpResponseException || ex.cause.class == ConnectTimeoutException
                 log.info("---- Jira not available yet ----")
                 sleep(1000)
             }
