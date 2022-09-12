@@ -26,6 +26,7 @@ import org.slf4j.LoggerFactory
 import unirest.shaded.com.google.gson.JsonObject
 import unirest.shaded.org.apache.http.NoHttpResponseException
 import unirest.shaded.org.apache.http.conn.ConnectTimeoutException
+import unirest.shaded.org.apache.http.conn.HttpHostConnectException
 
 import java.nio.file.StandardCopyOption
 
@@ -516,7 +517,7 @@ final class JiraInstanceMangerRest {
 
             } catch (UnirestException ex) {
 
-                assert ex.cause.class == NoHttpResponseException || ex.cause.class == ConnectTimeoutException
+                assert ex.cause.class == NoHttpResponseException || ex.cause.class == ConnectTimeoutException || ex.cause.class == HttpHostConnectException
                 log.info("---- Jira not available yet ----")
                 sleep(1000)
             }
@@ -649,6 +650,7 @@ final class JiraInstanceMangerRest {
         HttpResponse createProjectResponse = Unirest.post("/rest/jira-importers-plugin/1.0/demo/create")
                 .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
                 .cookie(acquireWebSudoCookies())
+                .socketTimeout(60000 * 8)
                 .header("X-Atlassian-Token", "no-check")
                 .field("name", name)
                 .field("key", key.toUpperCase())
@@ -843,7 +845,9 @@ final class JiraInstanceMangerRest {
         HttpResponse scriptRootResponse = Unirest.get("/rest/scriptrunner/latest/idea/scriptroots").cookie(sudoCookies).asJson()
 
 
-        LazyMap scriptRootRaw = new JsonSlurper().parseText(scriptRootResponse.body.toString())[0] as LazyMap
+        ArrayList roots = new JsonSlurper().parseText(scriptRootResponse.body.toString()) as ArrayList
+        assert roots && roots.size() == 1 : "Could not determine script root, is scriptrunner installed?"
+        LazyMap scriptRootRaw = roots[0] as LazyMap
 
         String scriptRoot = scriptRootRaw.get("info").get("rootPath")
         HttpResponse response = Unirest.put("/rest/scriptrunner/latest/idea/file?filePath=$filePath&rootPath=$scriptRoot").contentType("application/octet-stream").cookie(sudoCookies).body(scriptB64).asEmpty()
