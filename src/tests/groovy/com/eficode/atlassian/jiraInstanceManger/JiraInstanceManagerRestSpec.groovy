@@ -84,7 +84,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         String group = "com.eficode.atlassian"
         String module = "jirainstancemanger"
-        String version = "1.0.3-SNAPSHOT"
+        String version = "1.1.0-SNAPSHOT"
         String repoUrl = "https://github.com/eficode/JiraInstanceManagerRest/raw/packages/repository/"
 
         expect:
