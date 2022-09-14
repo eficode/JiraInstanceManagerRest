@@ -4,9 +4,8 @@
   <artifactId>jirainstancemanger</artifactId>
   <versioning>
     <versions>
-      <version>1.0-SNAPSHOT</version>
-      <version>1.0.4-SNAPSHOT</version>
+      <version>1.1.0-SNAPSHOT</version>
     </versions>
-    <lastUpdated>20220722102551</lastUpdated>
+    <lastUpdated>20220914181258</lastUpdated>
   </versioning>
 </metadata>
