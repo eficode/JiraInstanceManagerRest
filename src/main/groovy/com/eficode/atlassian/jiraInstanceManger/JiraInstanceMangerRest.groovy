@@ -1,10 +1,4 @@
 package com.eficode.atlassian.jiraInstanceManger
-/*
-//Seems to break SPOC testing
-@Grapes(
-        @Grab(group = 'com.konghq', module = 'unirest-java', version = '3.13.6', classifier = 'standalone')
-)
- */
 
 
 import com.eficode.atlassian.jiraInstanceManger.beans.ObjectSchemaBean
@@ -33,32 +27,33 @@ import java.nio.file.StandardCopyOption
 final class JiraInstanceMangerRest {
 
     static Logger log = LoggerFactory.getLogger(JiraInstanceMangerRest.class)
-    public static String baseUrl = "http://localhost:8080"
-    static Cookies cookies
-    public static String adminUsername = "admin"
-    public static String adminPassword = "admin"
-    public static boolean useSamlNoSso = false //Not tested
+    UnirestInstance unirest = Unirest.spawnInstance()
+    public String baseUrl
+    Cookies cookies
+    public String adminUsername = "admin"
+    public String adminPassword = "admin"
+    public boolean useSamlNoSso = false //Not tested
 
 
     /**
      * Setup JiraInstanceMangerRest with admin/admin as credentials.
-     * @param BaseUrl Defaults to http://localhost:8080
+     * @param BaseUrl ex: http://localhost:8080
      */
-    JiraInstanceMangerRest(String BaseUrl = baseUrl) {
+    JiraInstanceMangerRest(String BaseUrl) {
         baseUrl = BaseUrl
-        Unirest.config().defaultBaseUrl(BaseUrl)
+        unirest.config().defaultBaseUrl(BaseUrl)
 
     }
 
     /**
      * Setup JiraInstanceMangerRest with custom credentials
-     * @param BaseUrl Defaults to http://localhost:8080
+     * @param baseUrl ex: http://localhost:8080
      * @param username
      * @param password
      */
-    JiraInstanceMangerRest(String username, String password, String BaseUrl = baseUrl) {
+    JiraInstanceMangerRest(String username, String password, String BaseUrl) {
         baseUrl = BaseUrl
-        Unirest.config().defaultBaseUrl(BaseUrl)
+        unirest.config().defaultBaseUrl(BaseUrl)
         adminUsername = username
         adminPassword = password
 
@@ -91,7 +86,7 @@ final class JiraInstanceMangerRest {
      * @param userKey
      * @return a Cookies object for that user
      */
-    static Cookies acquireUserCookies(String userKey) {
+    Cookies acquireUserCookies(String userKey) {
 
         log.info("Getting cookies for user:" + userKey)
         Cookies cookies = acquireWebSudoCookies()
@@ -100,7 +95,7 @@ final class JiraInstanceMangerRest {
 
         UnirestInstance unirestInstance = Unirest.spawnInstance()
         unirestInstance.config().defaultBaseUrl(baseUrl)
-        HttpResponse switchUserResponse = Unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.SwitchUser")
+        HttpResponse switchUserResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.SwitchUser")
                 .body(["FIELD_USER_ID": userKey, "canned-script": "com.onresolve.scriptrunner.canned.jira.admin.SwitchUser"])
                 .contentType("application/json")
                 .cookie(cookies)
@@ -127,7 +122,7 @@ final class JiraInstanceMangerRest {
      * Gets WebSudo cookies using the adminUsername and adminPassword credentials
      * @return
      */
-    static Cookies acquireWebSudoCookies() {
+    Cookies acquireWebSudoCookies() {
         Map cookies = useSamlNoSso ? getCookiesFromRedirect("/secure/admin/WebSudoAuthenticate") : getCookiesFromRedirect("/login.jsp?nosso")
 
         UnirestInstance unirestInstance = Unirest.spawnInstance()
@@ -148,12 +143,12 @@ final class JiraInstanceMangerRest {
      * Returns Array of insight schemas
      * @return
      */
-    static ArrayList<ObjectSchemaBean> getInsightSchemas() {
+    ArrayList<ObjectSchemaBean> getInsightSchemas() {
 
         log.info("Getting Insight Schemas")
 
         Cookies cookies = acquireWebSudoCookies()
-        ArrayList<Map> rawMap = Unirest.get("/rest/insight/1.0/objectschema/list").cookie(cookies).asJson().body.object.toMap().objectschemas as ArrayList<Map>
+        ArrayList<Map> rawMap = unirest.get("/rest/insight/1.0/objectschema/list").cookie(cookies).asJson().body.object.toMap().objectschemas as ArrayList<Map>
         ArrayList<ObjectSchemaBean> schemaBeans = rawMap.collect { ObjectSchemaBean.fromMap(it) }
 
         return schemaBeans
@@ -171,7 +166,7 @@ final class JiraInstanceMangerRest {
      *      map.result -> OK
      *      map.resultData.exportFileName -> $outputFileName.zip
      */
-    static Map exportInsightSchema(String schemaName, String schemaId = null, String outputFileName, boolean includeObjects) {
+    Map exportInsightSchema(String schemaName, String schemaId = null, String outputFileName, boolean includeObjects) {
 
         log.info("Exporting Insight schema $schemaName ($schemaId)")
         Cookies cookies = acquireWebSudoCookies()
@@ -197,7 +192,7 @@ final class JiraInstanceMangerRest {
 
         ]
 
-        Map resultMap = Unirest.post("/rest/insight/1.0/objectschemaexport/export/server")
+        Map resultMap = unirest.post("/rest/insight/1.0/objectschemaexport/export/server")
                 .cookie(cookies)
                 .contentType("application/json")
                 .body(bodyMap)
@@ -223,7 +218,7 @@ final class JiraInstanceMangerRest {
      *      map.result -> OK
      *      map.resultMessage -> Imported object schema with objects (if any) successfully.
      */
-    static Map importInsightSchema(String fileName, String schemaName, String schemaKey, String schemaDescription = "", boolean includeObjects = false, boolean importAttachments = false, boolean importObjectAvatars = false) {
+    Map importInsightSchema(String fileName, String schemaName, String schemaKey, String schemaDescription = "", boolean includeObjects = false, boolean importAttachments = false, boolean importObjectAvatars = false) {
 
         //fileName: as it appears in the gui dialog box in gui
 
@@ -239,11 +234,11 @@ final class JiraInstanceMangerRest {
 
         Cookies sudoCookies = acquireWebSudoCookies()
 
-        HttpResponse validateResponse = Unirest.post("/rest/insight/1.0/objectschemaimport/import/server/nowarning").cookie(sudoCookies).body(bodyMap).header("Content-Type", "application/json").asJson()
+        HttpResponse validateResponse = unirest.post("/rest/insight/1.0/objectschemaimport/import/server/nowarning").cookie(sudoCookies).body(bodyMap).header("Content-Type", "application/json").asJson()
 
         assert validateResponse.status == 200, "Error validating Import Schema parameters"
 
-        HttpResponse importResponse = Unirest.post("/rest/insight/1.0/objectschemaimport/import/server").cookie(sudoCookies).body(bodyMap).header("Content-Type", "application/json").asJson()
+        HttpResponse importResponse = unirest.post("/rest/insight/1.0/objectschemaimport/import/server").cookie(sudoCookies).body(bodyMap).header("Content-Type", "application/json").asJson()
 
         assert importResponse.status == 200, "Error starting import of Insight schema $fileName, :" + importResponse.body.toPrettyString()
 
@@ -254,7 +249,7 @@ final class JiraInstanceMangerRest {
 
         while (!importProgress.containsKey("progressInPercent") || importProgress.progressInPercent != 100) {
 
-            HttpResponse progressResponse = Unirest.get("/rest/insight/1.0/progress/category/importobjectschema/" + schemaId).cookie(sudoCookies).asJson()
+            HttpResponse progressResponse = unirest.get("/rest/insight/1.0/progress/category/importobjectschema/" + schemaId).cookie(sudoCookies).asJson()
             importProgress = progressResponse.body.object.toMap()
             log.info("\tSchema import progress:" + importProgress.get("progressInPercent"))
             sleep(1000)
@@ -269,11 +264,11 @@ final class JiraInstanceMangerRest {
     }
 
 
-    static boolean deleteInsightSchema(int schemaId) {
+    boolean deleteInsightSchema(int schemaId) {
 
         log.info("Deleting Insight Schema:" + schemaId)
         cookies = acquireWebSudoCookies()
-        Map resultMap = Unirest.delete("/rest/insight/1.0/objectschema/" + schemaId)
+        Map resultMap = unirest.delete("/rest/insight/1.0/objectschema/" + schemaId)
                 .cookie(cookies)
                 .asJson().body.object.toMap()
 
@@ -289,16 +284,16 @@ final class JiraInstanceMangerRest {
      * @param license (Optional) A license key for the app
      * @return a bool representing success
      */
-    static boolean installApp(String appUrl, String license = null) {
+    boolean installApp(String appUrl, String license = null) {
 
 
         log.info("Installing App from URL:" + appUrl)
         Cookies sudoCookies = acquireWebSudoCookies()
 
-        HttpResponse upmTokenResponse = Unirest.get("/rest/plugins/1.0/?").cookie(sudoCookies).asEmpty()
+        HttpResponse upmTokenResponse = unirest.get("/rest/plugins/1.0/?").cookie(sudoCookies).asEmpty()
         String upmToken = upmTokenResponse.headers.getFirst("upm-token")
 
-        HttpResponse installResponse = Unirest.post("/rest/plugins/1.0/?token=$upmToken").header("Content-Type", "application/vnd.atl.plugins.install.uri+json").body(["pluginUri": appUrl]).cookie(sudoCookies).asJson()
+        HttpResponse installResponse = unirest.post("/rest/plugins/1.0/?token=$upmToken").header("Content-Type", "application/vnd.atl.plugins.install.uri+json").body(["pluginUri": appUrl]).cookie(sudoCookies).asJson()
 
         Map installMap = installResponse.body.getObject().toMap()
 
@@ -308,7 +303,7 @@ final class JiraInstanceMangerRest {
 
         while (!progress.containsKey("done") || !progress.done) {
 
-            HttpResponse taskProgress = Unirest.get(installMap.links.alternate).cookie(sudoCookies).asJson()
+            HttpResponse taskProgress = unirest.get(installMap.links.alternate).cookie(sudoCookies).asJson()
 
             progress = taskProgress.body.getObject().toMap()
 
@@ -327,14 +322,14 @@ final class JiraInstanceMangerRest {
 
             String newLicense = license.replaceAll("[\n\r]", "")
 
-            HttpResponse currentLicenseResponse = Unirest.get(localAppUrl + "/license").cookie(sudoCookies).asJson()
+            HttpResponse currentLicenseResponse = unirest.get(localAppUrl + "/license").cookie(sudoCookies).asJson()
             Map currentLicenseMap = currentLicenseResponse.body.getObject().toMap()
             String currentLicense = currentLicenseMap.rawLicense?.replaceAll("[\n\r]", "")
 
             if (currentLicense == newLicense) {
                 log.info("\t\tThe license is already installed")
             } else {
-                HttpResponse putLicenseResponse = Unirest.put(localAppUrl + "/license").contentType("application/vnd.atl.plugins+json").cookie(sudoCookies).body(["rawLicense": newLicense]).asJson()
+                HttpResponse putLicenseResponse = unirest.put(localAppUrl + "/license").contentType("application/vnd.atl.plugins+json").cookie(sudoCookies).body(["rawLicense": newLicense]).asJson()
 
                 Map putLicenseResponseMap = putLicenseResponse.body.getObject().toMap()
 
@@ -371,7 +366,7 @@ final class JiraInstanceMangerRest {
      * @param path
      * @return
      */
-    static Map getCookiesFromRedirect(String path, String username = adminUsername, String password = adminPassword, Map headers = [:]) {
+    Map getCookiesFromRedirect(String path, String username = adminUsername, String password = adminPassword, Map headers = [:]) {
 
         UnirestInstance unirestInstance = Unirest.spawnInstance()
         unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl)
@@ -415,14 +410,14 @@ final class JiraInstanceMangerRest {
      * @param baseUrl Base url of instance
      * @return true on success
      */
-    static boolean setApplicationProperties(String jiraLicense, String appTitle = "Jira", String baseUrl = this.baseUrl) {
+    boolean setApplicationProperties(String jiraLicense, String appTitle = "Jira", String baseUrl = this.baseUrl) {
 
         log.info("Setting up JIRA Application Properties")
         Map redirectResponse = getCookiesFromRedirect("/")
         cookies = redirectResponse.cookies
 
         String setupAppPropertiesUrl = "/secure/SetupApplicationProperties.jspa"
-        HttpResponse setAppProperties = Unirest.post(setupAppPropertiesUrl)
+        HttpResponse setAppProperties = unirest.post(setupAppPropertiesUrl)
                 .cookie(cookies)
                 .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
                 .field("title", appTitle)
@@ -440,7 +435,7 @@ final class JiraInstanceMangerRest {
         String setLicenseUrl = "/secure/SetupLicense.jspa"
 
 
-        HttpResponse setupLicenceResponse = Unirest.post(setLicenseUrl)
+        HttpResponse setupLicenceResponse = unirest.post(setLicenseUrl)
                 .cookie(cookies)
                 .field("setupLicenseKey", jiraLicense.replaceAll("[\n\r]", ""))
                 .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
@@ -454,7 +449,7 @@ final class JiraInstanceMangerRest {
         String setupAdminUrl = "/secure/SetupAdminAccount.jspa"
 
 
-        HttpResponse setupAdminResponse = Unirest.post(setupAdminUrl)
+        HttpResponse setupAdminResponse = unirest.post(setupAdminUrl)
                 .cookie(cookies)
                 .field("fullname", "Mister Admin")
                 .field("email", "admin@admin.com")
@@ -472,7 +467,7 @@ final class JiraInstanceMangerRest {
         String setupEmailUrl = "/secure/SetupMailNotifications.jspa"
 
 
-        HttpResponse setupEmailResponse = Unirest.post(setupEmailUrl)
+        HttpResponse setupEmailResponse = unirest.post(setupEmailUrl)
                 .cookie(cookies)
                 .field("noemail", "true")
                 .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
@@ -491,15 +486,15 @@ final class JiraInstanceMangerRest {
      * it will wait for JIRA to be responsive and will then configure JIRA to use a local H2 Database
      * @return true on success
      */
-    static boolean setupH2Database() {
+    boolean setupH2Database() {
 
         log.info("Setting up a blank H2 database for JIRA")
         long startTime = System.currentTimeMillis()
         Cookie xsrfCookie = null
 
-        while (startTime + (3*60000) > System.currentTimeMillis()) {
+        while (startTime + (3 * 60000) > System.currentTimeMillis()) {
             try {
-                HttpResponse<String> response = Unirest.get("/").asString()
+                HttpResponse<String> response = unirest.get("/").asString()
 
                 Cookie tempCookie = response.cookies.find { it.name == "atlassian.xsrf.token" }
 
@@ -529,7 +524,7 @@ final class JiraInstanceMangerRest {
         }
 
         log.info("Setting up local H2 database, this will take a several minutes.")
-        HttpResponse setupDbResponse = Unirest.post("/secure/SetupDatabase.jspa")
+        HttpResponse setupDbResponse = unirest.post("/secure/SetupDatabase.jspa")
                 .field("databaseOption", "internal")
                 .field("atl_token", xsrfCookie.value)
                 .socketTimeout((6 * 60000))
@@ -570,7 +565,7 @@ final class JiraInstanceMangerRest {
      * @return A ProjectBean
      */
 
-    static ProjectBean createJsmProjectWithSampleData(String name, String key) {
+    ProjectBean createJsmProjectWithSampleData(String name, String key) {
 
         return createSampleProject(name, key, "sd-demo-project-itil-v2")
 
@@ -585,7 +580,7 @@ final class JiraInstanceMangerRest {
      * @return A map containing information about the Project and Schema
      */
 
-    static Map createInsightProjectWithSampleData(String name, String key) {
+    Map createInsightProjectWithSampleData(String name, String key) {
 
         ArrayList<Integer> preExistingSchemaIds = getInsightSchemas().id
         ProjectBean projectBean = createSampleProject(name, key, "rlabs-project-template-itsm-demodata")
@@ -613,7 +608,7 @@ final class JiraInstanceMangerRest {
         log.debug("\t\tSchema key:" + key)
         log.debug("\t\tSchema template:" + template)
 
-        Map sampleSchemaMap = Unirest.post("/rest/insight/1.0/objectschemaimport/template")
+        Map sampleSchemaMap = unirest.post("/rest/insight/1.0/objectschemaimport/template")
                 .cookie(sudoCookies)
                 .contentType("application/json")
                 .body([
@@ -643,11 +638,11 @@ final class JiraInstanceMangerRest {
      *  Project Management: core-demo-project<br>
      * @return A ProjectBean
      */
-    static ProjectBean createSampleProject(String name, String key, String template) {
+    ProjectBean createSampleProject(String name, String key, String template) {
 
 
         log.info("Creating Project $name ($key) with sample data using template $template")
-        HttpResponse createProjectResponse = Unirest.post("/rest/jira-importers-plugin/1.0/demo/create")
+        HttpResponse createProjectResponse = unirest.post("/rest/jira-importers-plugin/1.0/demo/create")
                 .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
                 .cookie(acquireWebSudoCookies())
                 .socketTimeout(60000 * 8)
@@ -679,10 +674,10 @@ final class JiraInstanceMangerRest {
      * @return A map containing the raw result from JIRAs api
      *  returnMap.returnUrl -> link to the project
      */
-    static ProjectBean createJsmProject(String name, String key) {
+    ProjectBean createJsmProject(String name, String key) {
 
         log.info("Creating Project $name ($key)")
-        HttpResponse createProjectResponse = Unirest.post("/rest/project-templates/1.0/templates")
+        HttpResponse createProjectResponse = unirest.post("/rest/project-templates/1.0/templates")
                 .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
                 .cookie(acquireWebSudoCookies())
                 .header("X-Atlassian-Token", "no-check")
@@ -708,7 +703,7 @@ final class JiraInstanceMangerRest {
 
         log.info("Retrieving projects from " + baseUrl)
         ArrayList<ProjectBean> projectBeans = []
-        ArrayList<Map> rawList = Unirest.get("/rest/api/2/project").cookie(acquireWebSudoCookies()).asJson().body.array.toList()
+        ArrayList<Map> rawList = unirest.get("/rest/api/2/project").cookie(acquireWebSudoCookies()).asJson().body.array.toList()
         ArrayList<Map> massagedMap = rawList.collect { [returnUrl: "/projects/" + it.key, projectId: it.id as Integer, projectKey: it.key, projectName: it.name] }
 
         log.info("\tGot ${massagedMap.size()} projects")
@@ -729,7 +724,7 @@ final class JiraInstanceMangerRest {
     boolean deleteProject(def idOrKey) {
 
         log.info("Deleting project:" + idOrKey.toString())
-        Integer deleteStatus = Unirest.delete("/rest/api/2/project/" + idOrKey.toString()).cookie(acquireWebSudoCookies()).asEmpty().status
+        Integer deleteStatus = unirest.delete("/rest/api/2/project/" + idOrKey.toString()).cookie(acquireWebSudoCookies()).asEmpty().status
         return deleteStatus == 204
 
 
@@ -751,7 +746,7 @@ final class JiraInstanceMangerRest {
      * @return A map containing the raw result from SR
      */
 
-    static LazyMap runSpockTest(String packageToRun, String classToRun = "", String methodToRun = "") {
+    LazyMap runSpockTest(String packageToRun, String classToRun = "", String methodToRun = "") {
 
 
         String testToRun = packageToRun
@@ -771,7 +766,7 @@ final class JiraInstanceMangerRest {
 
         while (fileNotFoundFails <= 1) {
 
-            spockResponse = Unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.common.admin.RunUnitTests")
+            spockResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.common.admin.RunUnitTests")
                     .body(["FIELD_TEST": [testToRun], "FIELD_SCAN_PACKAGES": packageToRun])
                     .contentType("application/json")
                     .cookie(acquireWebSudoCookies())
@@ -836,21 +831,21 @@ final class JiraInstanceMangerRest {
      * @return true on success
      */
 
-    static boolean updateScriptrunnerFile(String scriptContent, String filePath) {
+    boolean updateScriptrunnerFile(String scriptContent, String filePath) {
 
         String scriptB64 = scriptContent.bytes.encodeBase64().toString()
 
         Cookies sudoCookies = acquireWebSudoCookies()
 
-        HttpResponse scriptRootResponse = Unirest.get("/rest/scriptrunner/latest/idea/scriptroots").cookie(sudoCookies).asJson()
+        HttpResponse scriptRootResponse = unirest.get("/rest/scriptrunner/latest/idea/scriptroots").cookie(sudoCookies).asJson()
 
 
         ArrayList roots = new JsonSlurper().parseText(scriptRootResponse.body.toString()) as ArrayList
-        assert roots && roots.size() == 1 : "Could not determine script root, is scriptrunner installed?"
+        assert roots && roots.size() == 1: "Could not determine script root, is scriptrunner installed?"
         LazyMap scriptRootRaw = roots[0] as LazyMap
 
         String scriptRoot = scriptRootRaw.get("info").get("rootPath")
-        HttpResponse response = Unirest.put("/rest/scriptrunner/latest/idea/file?filePath=$filePath&rootPath=$scriptRoot").contentType("application/octet-stream").cookie(sudoCookies).body(scriptB64).asEmpty()
+        HttpResponse response = unirest.put("/rest/scriptrunner/latest/idea/file?filePath=$filePath&rootPath=$scriptRoot").contentType("application/octet-stream").cookie(sudoCookies).body(scriptB64).asEmpty()
 
         return response.status == 204
 
@@ -864,7 +859,7 @@ final class JiraInstanceMangerRest {
      * @param filePath The sub path (including file name) of the script root, where the file should be placed.  No leading "/"
      * @return true on success
      */
-    static boolean updateScriptrunnerFile(File scriptFile, String filePath) {
+    boolean updateScriptrunnerFile(File scriptFile, String filePath) {
 
         return updateScriptrunnerFile(scriptFile.text, filePath)
 
@@ -879,7 +874,7 @@ final class JiraInstanceMangerRest {
      * @return true on success
      */
 
-    static boolean updateScriptrunnerFiles(Map<String, String> srcDest) {
+    boolean updateScriptrunnerFiles(Map<String, String> srcDest) {
 
         log.info("Updating ${srcDest.size()} files/folders on remote jira ($baseUrl)")
 
@@ -909,10 +904,10 @@ final class JiraInstanceMangerRest {
      * @param scriptContent Body of script
      * @return [log: logRows, errors: errorRows, success: boolean]
      */
-    static Map executeLocalScriptFile(String scriptContent) {
+    Map executeLocalScriptFile(String scriptContent) {
 
 
-        HttpResponse scriptResponse = Unirest.post("/rest/scriptrunner/latest/user/exec/").socketTimeout(4 * 60000).cookie(acquireWebSudoCookies()).contentType("application/json").body(["script": scriptContent]).asJson()
+        HttpResponse scriptResponse = unirest.post("/rest/scriptrunner/latest/user/exec/").socketTimeout(4 * 60000).cookie(acquireWebSudoCookies()).contentType("application/json").body(["script": scriptContent]).asJson()
 
         Map scriptResponseJson = scriptResponse.body.object.toMap()
         ArrayList<String> logRows = scriptResponseJson.snapshot?.log?.split("\n")
@@ -931,7 +926,7 @@ final class JiraInstanceMangerRest {
      * @param scriptFile scriptFile
      * @return [log: logRows, errors: errorRows, success: boolean]
      */
-    static Map executeLocalScriptFile(File scriptFile) {
+    Map executeLocalScriptFile(File scriptFile) {
 
         return executeLocalScriptFile(scriptFile.text)
     }
@@ -946,11 +941,11 @@ final class JiraInstanceMangerRest {
      * </b>
      *
      */
-    static void clearCodeCaches(ArrayList<String> rediscoverApps = []) {
+    void clearCodeCaches(ArrayList<String> rediscoverApps = []) {
 
         Cookies sudoCookies = acquireWebSudoCookies()
 
-        HttpResponse groovyCacheResponse = Unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.JiraClearCaches")
+        HttpResponse groovyCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.JiraClearCaches")
                 .cookie(sudoCookies)
                 .body(["FIELD_WHICH_CACHE": "gcl"])
                 .contentType("application/json")
@@ -959,7 +954,7 @@ final class JiraInstanceMangerRest {
         assert groovyCacheResponse.body.object.toMap().output == "Groovy cache cleared."
 
 
-        HttpResponse javaCacheResponse = Unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.JiraClearCaches")
+        HttpResponse javaCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.JiraClearCaches")
                 .cookie(sudoCookies)
                 .body(["FIELD_WHICH_CACHE": "jira"])
                 .contentType("application/json")
@@ -995,11 +990,11 @@ final class JiraInstanceMangerRest {
      * @param endpointId
      * @return true on success
      */
-    static boolean deleteScriptedRestEndpointId(String endpointId) {
+    boolean deleteScriptedRestEndpointId(String endpointId) {
 
         Cookies cookies = acquireWebSudoCookies()
 
-        HttpResponse response = Unirest.delete("/rest/scriptrunner/latest/custom/customadmin/$endpointId").cookie(cookies).asEmpty()
+        HttpResponse response = unirest.delete("/rest/scriptrunner/latest/custom/customadmin/$endpointId").cookie(cookies).asEmpty()
 
         return response.status == 204
 
@@ -1010,12 +1005,12 @@ final class JiraInstanceMangerRest {
      * @param endpointName Display name of endpoint
      * @return ID
      */
-    static String getScriptedRestEndpointId(String endpointName) {
+    String getScriptedRestEndpointId(String endpointName) {
 
         log.info("Getting ID for REST Endpoint:" + endpointName)
         Cookies cookies = acquireWebSudoCookies()
 
-        HttpResponse response = Unirest.get("/rest/scriptrunner/latest/custom/customadmin?").cookie(cookies).asJson()
+        HttpResponse response = unirest.get("/rest/scriptrunner/latest/custom/customadmin?").cookie(cookies).asJson()
         List<JsonObject> endpointsRaw = response.body.array.toList()
 
         log.trace("\tRaw response:")
@@ -1041,7 +1036,7 @@ final class JiraInstanceMangerRest {
      * @param description (Optional) Description of endpoint
      * @return true on suceess
      */
-    static boolean createScriptedRestEndpoint(String scriptPath = "", String scriptBody = "", String description = "") {
+    boolean createScriptedRestEndpoint(String scriptPath = "", String scriptBody = "", String description = "") {
 
         //scriptPath: relative to the script folder
 
@@ -1050,7 +1045,7 @@ final class JiraInstanceMangerRest {
         Cookies cookies = acquireWebSudoCookies()
         log.info("\t\t Acquired cookies:")
 
-        HttpResponse response = Unirest.post("/rest/scriptrunner/latest/custom/customadmin/com.onresolve.scriptrunner.canned.common.rest.CustomRestEndpoint")
+        HttpResponse response = unirest.post("/rest/scriptrunner/latest/custom/customadmin/com.onresolve.scriptrunner.canned.common.rest.CustomRestEndpoint")
                 .cookie(cookies)
                 .body(["FIELD_NOTES": description, "FIELD_SCRIPT_FILE_OR_SCRIPT": ["scriptPath": (scriptPath != "" ? scriptPath : null), "script": (scriptBody != "" ? scriptBody : null)]])
                 .contentType("application/json")
@@ -1068,11 +1063,11 @@ final class JiraInstanceMangerRest {
      * @param poolId id of the resource
      * @return true on success
      */
-    static boolean deleteLocalDbResourceId(String poolId) {
+    boolean deleteLocalDbResourceId(String poolId) {
 
         Cookies cookies = acquireWebSudoCookies()
 
-        HttpResponse response = Unirest.delete("/rest/scriptrunner/latest/resources/$poolId").cookie(cookies).asEmpty()
+        HttpResponse response = unirest.delete("/rest/scriptrunner/latest/resources/$poolId").cookie(cookies).asEmpty()
 
         return response.status == 204
 
@@ -1083,11 +1078,11 @@ final class JiraInstanceMangerRest {
      * @param poolName Name of resource
      * @return ID
      */
-    static String getLocalDbResourceId(String poolName) {
+    String getLocalDbResourceId(String poolName) {
 
         Cookies cookies = acquireWebSudoCookies()
 
-        HttpResponse response = Unirest.get("/rest/scriptrunner/latest/resources?").cookie(cookies).asJson()
+        HttpResponse response = unirest.get("/rest/scriptrunner/latest/resources?").cookie(cookies).asJson()
         List<JsonObject> resourcesRaw = response.body.array.toList()
 
 
@@ -1102,11 +1097,11 @@ final class JiraInstanceMangerRest {
      * @param poolName name of the new resource
      * @return true on success
      */
-    static boolean createLocalDbResource(String poolName) {
+    boolean createLocalDbResource(String poolName) {
 
         Cookies cookies = acquireWebSudoCookies()
 
-        HttpResponse response = Unirest.post("/rest/scriptrunner/latest/resources/com.onresolve.scriptrunner.canned.db.LocalDatabaseConnection")
+        HttpResponse response = unirest.post("/rest/scriptrunner/latest/resources/com.onresolve.scriptrunner.canned.db.LocalDatabaseConnection")
                 .cookie(cookies)
                 .body(["poolName": poolName, "canned-script": "com.onresolve.scriptrunner.canned.db.LocalDatabaseConnection"])
                 .contentType("application/json")

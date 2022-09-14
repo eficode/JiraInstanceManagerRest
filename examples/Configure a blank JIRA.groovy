@@ -74,7 +74,7 @@ assert instanceManager.createLocalDbResource("local")
 
 
 String addProjectRoleScript = "log.warn(\"Script was run!\")"
-assert JiraInstanceMangerRest.executeLocalScriptFile(addProjectRoleScript).success
+assert instanceManager.executeLocalScriptFile(addProjectRoleScript).success
 
 
 
