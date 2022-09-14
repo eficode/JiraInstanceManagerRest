@@ -1,4 +1,4 @@
-package com.eficode.atlassian.jiraInstanceManger.beans
+package com.eficode.atlassian.jiraInstanceManager.beans
 
 import com.fasterxml.jackson.databind.ObjectMapper
 

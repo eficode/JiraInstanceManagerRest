@@ -1,6 +1,6 @@
-# Jira Instance Manger Rest
+# Jira Instance Manager Rest
 
-Jira Instance Manger Rest (JR) is a Groovy library which can perform several administrative tasks solely through the REST API.
+Jira Instance Manager Rest (JR) is a Groovy library which can perform several administrative tasks solely through the REST API.
 
 ## Breaking Changes
 
@@ -9,7 +9,7 @@ Jira Instance Manger Rest (JR) is a Groovy library which can perform several adm
   * Fixing the unfortunate spelling mistake "JiraInstanceManagrRest" in favor for "JiraInstanceManagerRest"
 
 ## Background
-Jira Instance Manger Rest (JR) was created specifically for making automatic testing of JIRA customisations easier. The goal was that JR should be able to take a blank JIRA and configure any settings and customizations necessary to then run a full suite of automated tests.
+Jira Instance Manager Rest (JR) was created specifically for making automatic testing of JIRA customisations easier. The goal was that JR should be able to take a blank JIRA and configure any settings and customizations necessary to then run a full suite of automated tests.
 
 If you give JR a blank JIRA, it can help you:
 
@@ -24,7 +24,7 @@ If you give JR a blank JIRA, it can help you:
 9. Import/Export Insight Schemas
 
 
-## What Jira Instance Manger Rest IS NOT
+## What Jira Instance Manager Rest IS NOT
 
 JR is **NOT FOR PRODUCTION USE**, JR relies heavily on private and undocumented APIs, these can change without note.
 JR comes with Spoc tests that cover many of the functionalities, but they do not cover all use cases in all situations.
@@ -32,7 +32,7 @@ JR comes with Spoc tests that cover many of the functionalities, but they do not
 **Never rely on JR functioning in an unsupervised situation, especially in production**
 
 
-## What Jira Instance Manger Rest If Great For
+## What Jira Instance Manager Rest If Great For
 
 ### Stop using "Golden Images"
 
@@ -47,15 +47,15 @@ With docker and SR you can automate the setup of the workload and then run Spoc/
 
 ## Adding JR as a dependency
 
-JR packages are published to a separate branch in the JR repository called '[packages](https://github.com/eficode/JiraInstanceManagerRest/tree/packages/repository/com/eficode/atlassian/jirainstancemanger)'. **Check this branch for the most up to date version number**
+JR packages are published to a separate branch in the JR repository called '[packages](https://github.com/eficode/JiraInstanceManagerRest/tree/packages/repository/com/eficode/atlassian/jirainstancemanager)'. **Check this branch for the most up to date version number**
 
 ### Maven (POM)
 ```XML
 <dependencies>
    <dependency>
        <groupId>com.eficode.atlassian</groupId>
-       <artifactId>jirainstancemanger</artifactId>
-       <version>1.0.1-SNAPSHOT</version>
+       <artifactId>jirainstancemanager</artifactId>
+       <version>1.1.0-SNAPSHOT</version>
    </dependency>
 </dependencies>
 ...
@@ -71,10 +71,10 @@ JR packages are published to a separate branch in the JR repository called '[pac
 ### Groovy (Grape)
 
 ```Groovy
-@GrabResolver(name='github', root='https://github.com/eficode/JiraInstanceManagerRest/raw/packages/repository/')  
-@Grab(group='com.eficode.atlassian', module='jirainstancemanger', version='1.0.1-SNAPSHOT')  
-  
-import com.eficode.atlassian.jiraInstanceManger.JiraInstanceManagerRest  
-  
-JiraInstanceManagerRest instanceManager = new JiraInstanceManagerRest()
+@GrabResolver(name = 'github', root = 'https://github.com/eficode/JiraInstanceManagerRest/raw/packages/repository/')
+@Grab(group = 'com.eficode.atlassian', module = 'jirainstancemanager', version = '1.1.0-SNAPSHOT')
+
+import com.eficode.atlassian.jiraInstanceManager.JiraInstanceManagerRest
+
+JiraInstanceManagerRest instanceManager = new JiraInstanceManagerRest("http://jira.domain.com")
 ```
