@@ -4,15 +4,15 @@ import com.fasterxml.jackson.databind.ObjectMapper
 
 class ObjectSchemaBean {
 
-    Integer id
-    String name
-    String objectSchemaKey
-    String status
-    String created
-    String updated
-    Integer objectCount
-    Integer objectTypeCount
-    String description
+    public Integer id
+    public String name
+    public String objectSchemaKey
+    public String status
+    public String created
+    public String updated
+    public Integer objectCount
+    public Integer objectTypeCount
+    public String description
 
     static final ObjectMapper objectMapper = new ObjectMapper()
 

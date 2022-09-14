@@ -11,13 +11,34 @@ import org.slf4j.LoggerFactory
 import spock.lang.Shared
 import spock.lang.Specification
 
+/**
+ * Presumes that the JIRA instance at baseUrl
+ *      has been setup and has no important data
+ *      has Scriptrunner installed and licensed
+ *
+ *  Example script using devStack: https://github.com/eficode/devStack
+ *
+ *
+ *
+     import com.eficode.devstack.deployment.impl.JsmH2Deployment
+     JsmH2Deployment jsmD = new JsmH2Deployment(jiraUrl)
+     jsmD.setupSecureDockerConnection(dockerHost, dockerCertPath)
+     jsmD.setJiraLicense(new File(projectRoot.path + "/resources/jira/licenses/jsm.license").text)
+     jsmD.appsToInstall = [
+        "https://marketplace.atlassian.com/download/apps/6820/version/1005740"  : new File(projectRoot.path + "/resources/jira/licenses/scriptrunnerForJira.license").text
+     ]
+     jsmD.removeDeployment()
+     jsmD.setupDeployment()
+ */
+
 class JiraInstanceManagerRestSpec extends Specification {
 
     @Shared
-    static Logger log = LoggerFactory.getLogger(JiraInstanceMangerRest.class)
+    static Logger log = LoggerFactory.getLogger(JiraInstanceManagerRest.class)
 
     @Shared
-    static String baseUrl = "http://jira.test.com:8080"
+    static String baseUrl = "http://jira.domain.se:8080"
+
 
     @Shared
     static String restAdmin = "admin"
@@ -30,17 +51,51 @@ class JiraInstanceManagerRestSpec extends Specification {
 
     def setupSpec() {
 
-        JiraInstanceMangerRest.baseUrl = baseUrl
+        Unirest.config().defaultBaseUrl(baseUrl).setDefaultBasicAuth(restAdmin, restPw)
+        sudoCookies =  new JiraInstanceManagerRest(restAdmin, restPw, baseUrl).acquireWebSudoCookies()
 
-        Unirest.config().defaultBaseUrl(JiraInstanceMangerRest.baseUrl).setDefaultBasicAuth(restAdmin, restPw)
-        sudoCookies = JiraInstanceMangerRest.acquireWebSudoCookies()
+        assert sudoCookies
     }
 
+    JiraInstanceManagerRest getJiraInstanceManagerRest() {
+        return new JiraInstanceManagerRest(restAdmin, restPw, baseUrl)
+    }
+
+
+    def "Make sure multiple instances of the class stay independent"() {
+
+        setup:
+        JiraInstanceManagerRest jira1 = new JiraInstanceManagerRest(baseUrl, restAdmin, restPw)
+        JiraInstanceManagerRest jira2 = new JiraInstanceManagerRest(baseUrl + 2, restAdmin + 2, restPw + 2)
+
+
+        expect:
+        jira1.unirest.config().getDefaultBaseUrl() != jira2.unirest.config().getDefaultBaseUrl()
+        jira1.baseUrl != jira2.baseUrl
+
+
+    }
+
+    def "Test installation of Jar sources"() {
+
+        setup:
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
+
+
+        String group = "com.eficode.atlassian"
+        String module = "jirainstancemanger"
+        String version = "1.1.0-SNAPSHOT"
+        String repoUrl = "https://github.com/eficode/JiraInstanceManagerRest/raw/packages/repository/"
+
+        expect:
+        jira.installGroovyJarSources(group, module, version, repoUrl)
+
+    }
 
     def "Test Installation of Grapes"() {
 
         setup:
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
 
         String grapeGroup = "org.apache.httpcomponents"
         String grapeModule = "httpclient"
@@ -62,10 +117,25 @@ class JiraInstanceManagerRestSpec extends Specification {
 
     }
 
+
+
+    def "Test createJsmProjectWithSampleData"() {
+
+        setup:
+        JiraInstanceManagerRest jiraR = new JiraInstanceManagerRest(baseUrl)
+        String projectKey = jiraR.getAvailableProjectKey("SPOC")
+
+        when:
+        ProjectBean projectBean = jiraR.createJsmProjectWithSampleData(projectKey, projectKey)
+
+        then:
+        projectBean != null
+    }
+
     def "Simple getProjectsTest"() {
 
         setup:
-        JiraInstanceMangerRest jiraR = new JiraInstanceMangerRest()
+        JiraInstanceManagerRest jiraR = new JiraInstanceManagerRest(baseUrl)
 
         expect:
         !jiraR.getProjects().empty
@@ -80,6 +150,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         String spocUsername = "spoc_" + System.currentTimeSeconds()
         String spocUserKey = '""'
+        JiraInstanceManagerRest jiraRest = getJiraInstanceManagerRest()
 
 
         String userCrudScript = """
@@ -121,13 +192,15 @@ class JiraInstanceManagerRestSpec extends Specification {
         """
 
         log.info("Creating sample data for testing acquireUserCookies()")
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
         UnirestInstance spocInstance = Unirest.spawnInstance()
-        spocInstance.config().defaultBaseUrl(JiraInstanceMangerRest.baseUrl)
+        spocInstance.config().defaultBaseUrl(baseUrl)
 
 
         log.info("\tCreating spoc user:" + spocUsername)
-        Map createUserResult = JiraInstanceMangerRest.executeLocalScriptFile(userCrudScript.replace(["CREATE_USER": "true", "DELETE_USER": "false", "USERNAME_INPUT": spocUsername]))
+
+
+        Map createUserResult = jiraRest.executeLocalScriptFile(userCrudScript.replace(["CREATE_USER": "true", "DELETE_USER": "false", "USERNAME_INPUT": spocUsername]))
         assert createUserResult.success
         spocUserKey = createUserResult.log.last().replaceFirst(".*Created user with key:", "")
         assert spocUserKey: "Error getting user key for spoc user with name $spocUsername, should be in log line:" + createUserResult.log.last()
@@ -152,7 +225,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         cleanup:
         spocInstance.shutDown()
-        Map deleteUserResult = JiraInstanceMangerRest.executeLocalScriptFile(userCrudScript.replace(["CREATE_USER": "false", "DELETE_USER": "true", "SPOC_USER_KEY": spocUserKey]))
+        Map deleteUserResult = jiraRest.executeLocalScriptFile(userCrudScript.replace(["CREATE_USER": "false", "DELETE_USER": "true", "SPOC_USER_KEY": spocUserKey]))
         assert deleteUserResult.success
         log.info("\tSpoc user was deleted")
 
@@ -162,17 +235,19 @@ class JiraInstanceManagerRestSpec extends Specification {
 
     def "Test CRUD of SR Local DB Resource"() {
 
+        setup:
+        JiraInstanceManagerRest jiraR = getJiraInstanceManagerRest()
 
         when: "Instantiate JiraInstanceManager"
 
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
 
         then:
-        assert JiraInstanceMangerRest.createLocalDbResource("spoc-pool"): "Error creating Local DB Resource"
+        assert jiraR.createLocalDbResource("spoc-pool"): "Error creating Local DB Resource"
         log.info("DB Resource created")
 
         when: "Querying for the ID of the pool"
-        String poolId = JiraInstanceMangerRest.getLocalDbResourceId("spoc-pool")
+        String poolId = jiraR.getLocalDbResourceId("spoc-pool")
         log.info("getLocalDbResourceId returned:" + poolId)
 
         then:
@@ -181,8 +256,8 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.info("getLocalDbResourceId: appears to function")
 
         then:
-        assert JiraInstanceMangerRest.deleteLocalDbResourceId(poolId)
-        assert JiraInstanceMangerRest.getLocalDbResourceId("spoc-pool") == null
+        assert jiraR.deleteLocalDbResourceId(poolId)
+        assert jiraR.getLocalDbResourceId("spoc-pool") == null
         log.info("deleteLocalDbResourceId: appears to function")
 
     }
@@ -191,7 +266,7 @@ class JiraInstanceManagerRestSpec extends Specification {
     def "Test creation of SR Rest endpoint"() {
         setup: "Instantiate JiraInstanceManager"
 
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+        JiraInstanceManagerRest jira = getJiraInstanceManagerRest()
 
 
         String endpointScriptBody = """
@@ -217,7 +292,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "Creating a rest endpoint with script text"
         log.info("Creating scripted rest endpoint with Script body")
-        boolean createResult = JiraInstanceMangerRest.createScriptedRestEndpoint("", endpointScriptBody, "A description")
+        boolean createResult = jira.createScriptedRestEndpoint("", endpointScriptBody, "A description")
         log.info("\tGetting response from the new endpoint")
         HttpResponse queryNewEndpointResponse = Unirest.get("/rest/scriptrunner/latest/custom/spocTest").asJson()
         log.info("\t\tGot:" + queryNewEndpointResponse.body.toString())
@@ -228,15 +303,15 @@ class JiraInstanceManagerRestSpec extends Specification {
         queryNewEndpointResponse.body.object.get("status") == "working"
 
         then: "Deleting the new endpoint should succeed"
-        JiraInstanceMangerRest.deleteScriptedRestEndpointId(JiraInstanceMangerRest.getScriptedRestEndpointId("spocTest"))
+        jira.deleteScriptedRestEndpointId(jira.getScriptedRestEndpointId("spocTest"))
 
 
         when: "Creating a rest endpoint with script file"
         log.info("Creating scripted rest endpoint with Script file")
-        assert JiraInstanceMangerRest.updateScriptrunnerFile(endpointScriptBody, "spocTestEndpoint.groovy"): "Error creating script file"
+        assert jira.updateScriptrunnerFile(endpointScriptBody, "spocTestEndpoint.groovy"): "Error creating script file"
         log.info("\tCreated script file")
 
-        createResult = JiraInstanceMangerRest.createScriptedRestEndpoint("spocTestEndpoint.groovy", "", "A description")
+        createResult = jira.createScriptedRestEndpoint("spocTestEndpoint.groovy", "", "A description")
         log.info("\tGetting response from the new endpoint")
         queryNewEndpointResponse = Unirest.get("/rest/scriptrunner/latest/custom/spocTest").asJson()
         log.info("\t\tGot:" + queryNewEndpointResponse.body.toString())
@@ -247,7 +322,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         queryNewEndpointResponse.body.object.get("status") == "working"
 
         then: "Deleting the new endpoint should succeed"
-        JiraInstanceMangerRest.deleteScriptedRestEndpointId(JiraInstanceMangerRest.getScriptedRestEndpointId("spocTest"))
+        jira.deleteScriptedRestEndpointId(jira.getScriptedRestEndpointId("spocTest"))
 
 
     }
@@ -261,7 +336,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
 
 
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
         jira.acquireWebSudoCookies()
 
         String projectName = "Spoc Src Schema"
@@ -298,7 +373,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         log.info("Will test export and import of insight object schemas")
 
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest()
+        JiraInstanceManagerRest jira = getJiraInstanceManagerRest()
         jira.acquireWebSudoCookies()
 
         String srcSchemaName = "Spoc Src Schema"
@@ -325,7 +400,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "Exporting the new sample schema"
         log.info("Exporting the new sample schema")
-        Map exportResult = JiraInstanceMangerRest.exportInsightSchema(sampleSchemaMap.name as String, sampleSchemaMap.id as String, "anOutput", true)
+        Map exportResult = jira.exportInsightSchema(sampleSchemaMap.name as String, sampleSchemaMap.id as String, "anOutput", true)
         String exportFile = exportResult.resultData.exportFileName as String
         log.info("\tExport result:" + exportResult?.result)
 
@@ -348,11 +423,11 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         log.info("Moving the newly created export file to the import directory")
         log.debug("\tMoving to: /var/atlassian/application-data/jira/import/insight/$exportFile")
-        JiraInstanceMangerRest.executeLocalScriptFile(moveFileToImportScriptBody)
+        jira.executeLocalScriptFile(moveFileToImportScriptBody)
 
 
         log.info("Importing the newly created export")
-        Map importResult = JiraInstanceMangerRest.importInsightSchema(exportFile, srcSchemaName + " reImported", srcSchemaKey + "imp", srcSchemaName, true)
+        Map importResult = jira.importInsightSchema(exportFile, srcSchemaName + " reImported", srcSchemaKey + "imp", srcSchemaName, true)
 
         log.info("\tImport result:" + importResult?.result)
         String importSchemaId = importResult.resourceId
@@ -368,7 +443,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
 
         when: "Making sure getInsightSchemas() finds the schemas"
-        ArrayList<ObjectSchemaBean> schemas = JiraInstanceMangerRest.getInsightSchemas()
+        ArrayList<ObjectSchemaBean> schemas = jira.getInsightSchemas()
 
         log.trace("getInsightSchemas() returned schemas:" + schemas.name)
 
@@ -377,8 +452,8 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert schemas.find {it.objectSchemaKey == srcSchemaKey + "IMP" }
 
         expect: "Deleting the schema"
-        assert JiraInstanceMangerRest.deleteInsightSchema(sampleSchemaMap.id as int) : "Error deleting schema"
-        assert ! JiraInstanceMangerRest.getInsightSchemas().find { it.id == sampleSchemaMap.id && it.key == sampleSchemaMap.key } : "After schema deletion, API still says the schema exists"
+        assert jira.deleteInsightSchema(sampleSchemaMap.id as int) : "Error deleting schema"
+        assert ! jira.getInsightSchemas().find { it.id == sampleSchemaMap.id && it.key == sampleSchemaMap.key } : "After schema deletion, API still says the schema exists"
 
 
         cleanup:

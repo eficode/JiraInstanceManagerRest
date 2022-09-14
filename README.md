@@ -2,6 +2,12 @@
 
 Jira Instance Manger Rest (JR) is a Groovy library which can perform several administrative tasks solely through the REST API.
 
+## Breaking Changes
+
+* 1.1.0: 
+  * Almost all static methods in JiraInstanceManagerRest have been removed in order to better facilitate working with multiple JIRA instances and in cooperation with other libraries using Unirest library.
+  * Fixing the unfortunate spelling mistake "JiraInstanceManagrRest" in favor for "JiraInstanceManagerRest"
+
 ## Background
 Jira Instance Manger Rest (JR) was created specifically for making automatic testing of JIRA customisations easier. The goal was that JR should be able to take a blank JIRA and configure any settings and customizations necessary to then run a full suite of automated tests.
 
@@ -41,7 +47,7 @@ With docker and SR you can automate the setup of the workload and then run Spoc/
 
 ## Adding JR as a dependency
 
-JR packages are published to a separate branch in the JR repository called '[packages](https://github.com/eficode/JiraInstanceMangerRest/tree/packages/repository/com/eficode/atlassian/jirainstancemanger)'. **Check this branch for the most up to date version number**
+JR packages are published to a separate branch in the JR repository called '[packages](https://github.com/eficode/JiraInstanceManagerRest/tree/packages/repository/com/eficode/atlassian/jirainstancemanger)'. **Check this branch for the most up to date version number**
 
 ### Maven (POM)
 ```XML
@@ -56,7 +62,7 @@ JR packages are published to a separate branch in the JR repository called '[pac
 <repositories>            
     <repository>
            <id>github-jiraManagerRest</id>
-           <url>https://github.com/eficode/JiraInstanceMangerRest/raw/packages/repository/</url>
+           <url>https://github.com/eficode/JiraInstanceManagerRest/raw/packages/repository/</url>
        </repository>
 </repositories>
 ```
@@ -65,10 +71,10 @@ JR packages are published to a separate branch in the JR repository called '[pac
 ### Groovy (Grape)
 
 ```Groovy
-@GrabResolver(name='github', root='https://github.com/eficode/JiraInstanceMangerRest/raw/packages/repository/')  
+@GrabResolver(name='github', root='https://github.com/eficode/JiraInstanceManagerRest/raw/packages/repository/')  
 @Grab(group='com.eficode.atlassian', module='jirainstancemanger', version='1.0.1-SNAPSHOT')  
   
-import com.eficode.atlassian.jiraInstanceManger.JiraInstanceMangerRest  
+import com.eficode.atlassian.jiraInstanceManger.JiraInstanceManagerRest  
   
-JiraInstanceMangerRest instanceManager = new JiraInstanceMangerRest()
+JiraInstanceManagerRest instanceManager = new JiraInstanceManagerRest()
 ```
