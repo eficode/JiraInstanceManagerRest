@@ -1,4 +1,4 @@
-import com.eficode.atlassian.jiraInstanceManger.JiraInstanceManagerRest
+import com.eficode.atlassian.jiraInstanceManager.JiraInstanceManagerRest
 
 /**
  *
@@ -57,7 +57,7 @@ instanceManager.createJsmProjectWithSampleData("Jira Rest", "JR")
 
 
 Map filesToUpdate = [
-        "../src/customEficodeLibraries/jiraInstanceManger/"        : "customEficodeLibraries/jiraInstanceManger/",
+        "../src/customEficodeLibraries/jirainstancemanager/"        : "customEficodeLibraries/jirainstancemanager/",
         // "/some/directory/file.groovy"  : "directory/file.groovy"
 
 ]

@@ -1,7 +1,7 @@
-package com.eficode.atlassian.jiraInstanceManger
+package com.eficode.atlassian.jiraInstanceManager
 
-import com.eficode.atlassian.jiraInstanceManger.beans.ObjectSchemaBean
-import com.eficode.atlassian.jiraInstanceManger.beans.ProjectBean
+import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
+import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
 import kong.unirest.Cookies
 import kong.unirest.HttpResponse
 import kong.unirest.Unirest
@@ -83,7 +83,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
 
         String group = "com.eficode.atlassian"
-        String module = "jirainstancemanger"
+        String module = "jirainstancemanager"
         String version = "1.1.0-SNAPSHOT"
         String repoUrl = "https://github.com/eficode/JiraInstanceManagerRest/raw/packages/repository/"
 

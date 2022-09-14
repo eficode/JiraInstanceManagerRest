@@ -1,9 +1,7 @@
-package com.eficode.atlassian.jiraInstanceManger
+package com.eficode.atlassian.jiraInstanceManager
 
-
-import com.eficode.atlassian.jiraInstanceManger.beans.ObjectSchemaBean
-import com.eficode.atlassian.jiraInstanceManger.beans.ProjectBean
-import com.fasterxml.jackson.databind.ObjectMapper
+import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
+import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
 import groovy.io.FileType
 import groovy.json.JsonSlurper
 import kong.unirest.Cookie
