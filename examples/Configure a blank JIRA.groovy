@@ -1,4 +1,4 @@
-import com.eficode.atlassian.jiraInstanceManger.JiraInstanceMangerRest
+import com.eficode.atlassian.jiraInstanceManger.JiraInstanceManagerRest
 
 /**
  *
@@ -30,7 +30,7 @@ help
 //Enable trace logging
 System.setProperty("org.slf4j.simpleLogger.defaultLogLevel", "trace");
 
-JiraInstanceMangerRest instanceManager = new JiraInstanceMangerRest()
+JiraInstanceManagerRest instanceManager = new JiraInstanceManagerRest(adminUsername, adminPassword, jiraUrl)
 instanceManager.adminUsername = adminUsername
 instanceManager.adminPassword = adminPassword
 

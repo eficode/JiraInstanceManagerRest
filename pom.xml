@@ -6,7 +6,7 @@
 
     <groupId>com.eficode.atlassian</groupId>
     <artifactId>jirainstancemanger</artifactId>
-    <version>1.0.4-SNAPSHOT</version>
+    <version>1.1.0-SNAPSHOT</version>
     <description>A groovy library for interacting with Jira REST API. NOT FOR PRODUCTION USER</description>
 
     <dependencies>
@@ -43,6 +43,15 @@
             <artifactId>jackson-databind</artifactId>
             <version>2.13.3</version>
         </dependency>
+        <!-- Devstack currently used Groovy 3 and breaks when used in this project -->
+        <!--dependency>
+
+            <groupId>com.eficode</groupId>
+            <artifactId>devstack</artifactId>
+            <version>1.0.6-SNAPSHOT</version>
+            <scope>test</scope>
+
+        </dependency-->
 
         <!--
         <dependency>
@@ -71,10 +80,17 @@
     <distributionManagement>
         <repository>
             <id>github</id>
-            <name>Eficode JiraInstanceMangerRest</name>
-            <url>https://maven.pkg.github.com/eficode/jirainstancemangerrest</url>
+            <name>Eficode JiraInstanceManagerRest</name>
+            <url>https://maven.pkg.github.com/eficode/JiraInstanceManagerRest</url>
         </repository>
     </distributionManagement>
+
+    <repositories>
+        <repository>
+            <id>eficode-github-insightManager</id>
+            <url>https://github.com/eficode/devStack/raw/packages/repository/</url>
+        </repository>
+    </repositories>
 
 
     <build>

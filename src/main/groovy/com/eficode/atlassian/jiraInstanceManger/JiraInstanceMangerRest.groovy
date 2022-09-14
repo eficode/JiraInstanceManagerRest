@@ -24,9 +24,9 @@ import unirest.shaded.org.apache.http.conn.HttpHostConnectException
 
 import java.nio.file.StandardCopyOption
 
-final class JiraInstanceMangerRest {
+final class JiraInstanceManagerRest {
 
-    static Logger log = LoggerFactory.getLogger(JiraInstanceMangerRest.class)
+    static Logger log = LoggerFactory.getLogger(JiraInstanceManagerRest.class)
     UnirestInstance unirest = Unirest.spawnInstance()
     public String baseUrl
     Cookies cookies
@@ -36,22 +36,22 @@ final class JiraInstanceMangerRest {
 
 
     /**
-     * Setup JiraInstanceMangerRest with admin/admin as credentials.
+     * Setup JiraInstanceManagerRest with admin/admin as credentials.
      * @param BaseUrl ex: http://localhost:8080
      */
-    JiraInstanceMangerRest(String BaseUrl) {
+    JiraInstanceManagerRest(String BaseUrl) {
         baseUrl = BaseUrl
         unirest.config().defaultBaseUrl(BaseUrl)
 
     }
 
     /**
-     * Setup JiraInstanceMangerRest with custom credentials
+     * Setup JiraInstanceManagerRest with custom credentials
      * @param baseUrl ex: http://localhost:8080
      * @param username
      * @param password
      */
-    JiraInstanceMangerRest(String username, String password, String BaseUrl) {
+    JiraInstanceManagerRest(String username, String password, String BaseUrl) {
         baseUrl = BaseUrl
         unirest.config().defaultBaseUrl(BaseUrl)
         adminUsername = username

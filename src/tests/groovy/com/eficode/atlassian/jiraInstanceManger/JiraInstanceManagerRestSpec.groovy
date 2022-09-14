@@ -34,7 +34,7 @@ import spock.lang.Specification
 class JiraInstanceManagerRestSpec extends Specification {
 
     @Shared
-    static Logger log = LoggerFactory.getLogger(JiraInstanceMangerRest.class)
+    static Logger log = LoggerFactory.getLogger(JiraInstanceManagerRest.class)
 
     @Shared
     static String baseUrl = "http://jira.domain.se:8080"
@@ -52,21 +52,21 @@ class JiraInstanceManagerRestSpec extends Specification {
     def setupSpec() {
 
         Unirest.config().defaultBaseUrl(baseUrl).setDefaultBasicAuth(restAdmin, restPw)
-        sudoCookies =  new JiraInstanceMangerRest(restAdmin, restPw, baseUrl).acquireWebSudoCookies()
+        sudoCookies =  new JiraInstanceManagerRest(restAdmin, restPw, baseUrl).acquireWebSudoCookies()
 
         assert sudoCookies
     }
 
-    JiraInstanceMangerRest getJiraInstanceMangerRest() {
-        return new JiraInstanceMangerRest(restAdmin, restPw, baseUrl)
+    JiraInstanceManagerRest getJiraInstanceManagerRest() {
+        return new JiraInstanceManagerRest(restAdmin, restPw, baseUrl)
     }
 
 
     def "Make sure multiple instances of the class stay independent"() {
 
         setup:
-        JiraInstanceMangerRest jira1 = new JiraInstanceMangerRest(baseUrl, restAdmin, restPw)
-        JiraInstanceMangerRest jira2 = new JiraInstanceMangerRest(baseUrl + 2, restAdmin + 2, restPw + 2)
+        JiraInstanceManagerRest jira1 = new JiraInstanceManagerRest(baseUrl, restAdmin, restPw)
+        JiraInstanceManagerRest jira2 = new JiraInstanceManagerRest(baseUrl + 2, restAdmin + 2, restPw + 2)
 
 
         expect:
@@ -79,13 +79,13 @@ class JiraInstanceManagerRestSpec extends Specification {
     def "Test installation of Jar sources"() {
 
         setup:
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest(baseUrl)
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
 
 
         String group = "com.eficode.atlassian"
         String module = "jirainstancemanger"
         String version = "1.0.3-SNAPSHOT"
-        String repoUrl = "https://github.com/eficode/JiraInstanceMangerRest/raw/packages/repository/"
+        String repoUrl = "https://github.com/eficode/JiraInstanceManagerRest/raw/packages/repository/"
 
         expect:
         jira.installGroovyJarSources(group, module, version, repoUrl)
@@ -95,7 +95,7 @@ class JiraInstanceManagerRestSpec extends Specification {
     def "Test Installation of Grapes"() {
 
         setup:
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest(baseUrl)
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
 
         String grapeGroup = "org.apache.httpcomponents"
         String grapeModule = "httpclient"
@@ -122,7 +122,7 @@ class JiraInstanceManagerRestSpec extends Specification {
     def "Test createJsmProjectWithSampleData"() {
 
         setup:
-        JiraInstanceMangerRest jiraR = new JiraInstanceMangerRest(baseUrl)
+        JiraInstanceManagerRest jiraR = new JiraInstanceManagerRest(baseUrl)
         String projectKey = jiraR.getAvailableProjectKey("SPOC")
 
         when:
@@ -135,7 +135,7 @@ class JiraInstanceManagerRestSpec extends Specification {
     def "Simple getProjectsTest"() {
 
         setup:
-        JiraInstanceMangerRest jiraR = new JiraInstanceMangerRest(baseUrl)
+        JiraInstanceManagerRest jiraR = new JiraInstanceManagerRest(baseUrl)
 
         expect:
         !jiraR.getProjects().empty
@@ -150,7 +150,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         String spocUsername = "spoc_" + System.currentTimeSeconds()
         String spocUserKey = '""'
-        JiraInstanceMangerRest jiraRest = getJiraInstanceMangerRest()
+        JiraInstanceManagerRest jiraRest = getJiraInstanceManagerRest()
 
 
         String userCrudScript = """
@@ -192,7 +192,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         """
 
         log.info("Creating sample data for testing acquireUserCookies()")
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest(baseUrl)
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
         UnirestInstance spocInstance = Unirest.spawnInstance()
         spocInstance.config().defaultBaseUrl(baseUrl)
 
@@ -236,11 +236,11 @@ class JiraInstanceManagerRestSpec extends Specification {
     def "Test CRUD of SR Local DB Resource"() {
 
         setup:
-        JiraInstanceMangerRest jiraR = getJiraInstanceMangerRest()
+        JiraInstanceManagerRest jiraR = getJiraInstanceManagerRest()
 
         when: "Instantiate JiraInstanceManager"
 
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest(baseUrl)
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
 
         then:
         assert jiraR.createLocalDbResource("spoc-pool"): "Error creating Local DB Resource"
@@ -266,7 +266,7 @@ class JiraInstanceManagerRestSpec extends Specification {
     def "Test creation of SR Rest endpoint"() {
         setup: "Instantiate JiraInstanceManager"
 
-        JiraInstanceMangerRest jira = getJiraInstanceMangerRest()
+        JiraInstanceManagerRest jira = getJiraInstanceManagerRest()
 
 
         String endpointScriptBody = """
@@ -336,7 +336,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
 
 
-        JiraInstanceMangerRest jira = new JiraInstanceMangerRest(baseUrl)
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
         jira.acquireWebSudoCookies()
 
         String projectName = "Spoc Src Schema"
@@ -373,7 +373,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         log.info("Will test export and import of insight object schemas")
 
-        JiraInstanceMangerRest jira = getJiraInstanceMangerRest()
+        JiraInstanceManagerRest jira = getJiraInstanceManagerRest()
         jira.acquireWebSudoCookies()
 
         String srcSchemaName = "Spoc Src Schema"
