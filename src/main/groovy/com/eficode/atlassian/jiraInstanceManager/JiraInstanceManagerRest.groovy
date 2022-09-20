@@ -516,7 +516,7 @@ final class JiraInstanceManagerRest {
             }
         }
 
-        if (System.currentTimeMillis() > startTime + 60000) {
+        if (System.currentTimeMillis() > startTime + 180000) {
 
             throw new NoHttpResponseException("Timeout waiting for JIRA Setup dialog")
         }
