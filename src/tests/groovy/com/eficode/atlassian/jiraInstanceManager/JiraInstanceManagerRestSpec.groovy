@@ -61,6 +61,15 @@ class JiraInstanceManagerRestSpec extends Specification {
         return new JiraInstanceManagerRest(restAdmin, restPw, baseUrl)
     }
 
+    def "Test scriptRunnerIsInstalled"() {
+
+        setup:
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
+
+        expect:
+        jira.scriptRunnerIsInstalled()
+
+    }
 
     def "Make sure multiple instances of the class stay independent"() {
 
