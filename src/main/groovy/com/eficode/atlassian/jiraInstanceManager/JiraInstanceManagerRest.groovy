@@ -345,6 +345,28 @@ final class JiraInstanceManagerRest {
 
     }
 
+    boolean scriptRunnerIsInstalled() {
+        log.info("Checking if ScriptRunner is installed and enabled")
+        Cookies sudoCookies = acquireWebSudoCookies()
+
+        HttpResponse pluginsResponse = unirest.get("/rest/plugins/1.0/com.onresolve.jira.groovy.groovyrunner-key/summary").cookie(sudoCookies).asJson()
+
+        if (pluginsResponse.status == 404) {
+            return false
+        }
+
+        Map scriptrunnerMap = pluginsResponse.body.getObject().toMap()
+
+        if (scriptrunnerMap != null && scriptrunnerMap.enabled) {
+            return true
+        }else {
+            return false
+        }
+
+
+
+    }
+
     static String resolveRedirectPath(HttpResponse response, String previousPath = null) {
 
         String newLocation = response.headers.getFirst("Location")
@@ -437,7 +459,7 @@ final class JiraInstanceManagerRest {
                 .cookie(cookies)
                 .field("setupLicenseKey", jiraLicense.replaceAll("[\n\r]", ""))
                 .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
-                .socketTimeout(120000)
+                .socketTimeout(4 * 60000)
                 .asJson()
 
         assert setupLicenceResponse.status == 302, "Error setting license"
