@@ -340,6 +340,7 @@ final class JiraInstanceManagerRest {
 
         }
 
+
         return true
 
     }
@@ -361,7 +362,6 @@ final class JiraInstanceManagerRest {
         }else {
             return false
         }
-
 
 
 
