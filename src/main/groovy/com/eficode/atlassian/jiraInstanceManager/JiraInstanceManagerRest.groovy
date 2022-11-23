@@ -57,6 +57,8 @@ final class JiraInstanceManagerRest {
 
     }
 
+    /** --- REST Backend --- **/
+
     static Cookies extractCookiesFromResponse(HttpResponse response, Cookies existingCookies = null) {
 
         if (existingCookies == null) {
@@ -136,6 +138,56 @@ final class JiraInstanceManagerRest {
         Cookies sudoCookies = webSudoResponse.cookies
         return sudoCookies
     }
+
+    static String resolveRedirectPath(HttpResponse response, String previousPath = null) {
+
+        String newLocation = response.headers.getFirst("Location")
+        if (!newLocation) {
+            return null
+        } else if (!newLocation.startsWith("/")) {
+            newLocation = previousPath.substring(0, previousPath.lastIndexOf("/") + 1) + newLocation
+        }
+
+        return newLocation
+
+    }
+
+
+    /**
+     * Unirest by default gets lost when several redirects return cookies, this method will retain them
+     * @param path
+     * @return
+     */
+    Map getCookiesFromRedirect(String path, String username = adminUsername, String password = adminPassword, Map headers = [:]) {
+
+        UnirestInstance unirestInstance = Unirest.spawnInstance()
+        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl)
+
+        Cookies cookies = new Cookies()
+        GetRequest getRequest = unirestInstance.get(path).headers(headers)
+        if (username && password) {
+            getRequest.basicAuth(username, password)
+        }
+        HttpResponse getResponse = getRequest.asString()
+        cookies = extractCookiesFromResponse(getResponse, cookies)
+
+        String newLocation = getResponse.headers.getFirst("Location")
+
+        while (getResponse.status == 302) {
+
+
+            newLocation = resolveRedirectPath(getResponse, newLocation)
+            getResponse = unirestInstance.get(newLocation).asString()
+            cookies = extractCookiesFromResponse(getResponse, cookies)
+
+        }
+
+
+        unirestInstance.shutDown()
+        return ["cookies": cookies, "lastResponse": getResponse]
+    }
+
+    /** --- Insight --- **/
 
     /**
      * Returns Array of insight schemas
@@ -276,6 +328,63 @@ final class JiraInstanceManagerRest {
     }
 
     /**
+     * This will create a sample JSM project using the "Insight IT Service Management" template
+     * An associated Insight Schema will also be created.
+     * The project will contain issues, and the schema will contain objects
+     * @param name Name of the new project
+     * @param key Key of the new project
+     * @return A map containing information about the Project and Schema
+     */
+
+    Map createInsightProjectWithSampleData(String name, String key) {
+
+        ArrayList<Integer> preExistingSchemaIds = getInsightSchemas().id
+        ProjectBean projectBean = createSampleProject(name, key, "rlabs-project-template-itsm-demodata")
+        ObjectSchemaBean schemaBean = getInsightSchemas().find { !preExistingSchemaIds.contains(it.id) }
+
+        return [project: projectBean, schema: schemaBean]
+
+    }
+
+
+    /**
+     * Creates one of the template schemas, all but "empty" has objectTypes.
+     * None of the templates comes with objects
+     * @param name Schema name
+     * @param key Schema key
+     * @param template hr, empty, itassets, crm
+     * @return
+     */
+    ObjectSchemaBean createTemplateSchema(String name, String key, String template) {
+
+        assert ["hr", "empty", "itassets", "crm"].contains(template): "Unknown template type $template, valid choices are: hr, empty, itassets, crm"
+
+        log.info("\tWill create a new template schema")
+        log.debug("\t\tSchema name:" + name)
+        log.debug("\t\tSchema key:" + key)
+        log.debug("\t\tSchema template:" + template)
+
+        Map sampleSchemaMap = unirest.post("/rest/insight/1.0/objectschemaimport/template")
+                .cookie(sudoCookies)
+                .contentType("application/json")
+                .body([
+                        "status"         : "ok",
+                        "name"           : name,
+                        "objectSchemaKey": key,
+                        "type"           : template
+
+                ]).asJson().body.object.toMap()
+
+        log.info("\tSchema created with status ${sampleSchemaMap.status} and Id: " + sampleSchemaMap.id)
+        assert sampleSchemaMap.status == "Ok", "Error creating sample schema:" + sampleSchemaMap?.errors?.values()?.join(",")
+
+
+        return ObjectSchemaBean.fromMap(sampleSchemaMap)
+    }
+
+    /** --- App management --- **/
+
+    /**
      * Install an App from Marketplace
      * @param appUrl Can be obtained by going to the marketplace listing of the app, checking its versions and getting the "Download" link URL
      *      Ex: https://marketplace.atlassian.com/download/apps/123/version/456
@@ -367,54 +476,9 @@ final class JiraInstanceManagerRest {
 
     }
 
-    static String resolveRedirectPath(HttpResponse response, String previousPath = null) {
-
-        String newLocation = response.headers.getFirst("Location")
-        if (!newLocation) {
-            return null
-        } else if (!newLocation.startsWith("/")) {
-            newLocation = previousPath.substring(0, previousPath.lastIndexOf("/") + 1) + newLocation
-        }
-
-        return newLocation
-
-    }
 
 
-    /**
-     * Unirest by default gets lost when several redirects return cookies, this method will retain them
-     * @param path
-     * @return
-     */
-    Map getCookiesFromRedirect(String path, String username = adminUsername, String password = adminPassword, Map headers = [:]) {
-
-        UnirestInstance unirestInstance = Unirest.spawnInstance()
-        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl)
-
-        Cookies cookies = new Cookies()
-        GetRequest getRequest = unirestInstance.get(path).headers(headers)
-        if (username && password) {
-            getRequest.basicAuth(username, password)
-        }
-        HttpResponse getResponse = getRequest.asString()
-        cookies = extractCookiesFromResponse(getResponse, cookies)
-
-        String newLocation = getResponse.headers.getFirst("Location")
-
-        while (getResponse.status == 302) {
-
-
-            newLocation = resolveRedirectPath(getResponse, newLocation)
-            getResponse = unirestInstance.get(newLocation).asString()
-            cookies = extractCookiesFromResponse(getResponse, cookies)
-
-        }
-
-
-        unirestInstance.shutDown()
-        return ["cookies": cookies, "lastResponse": getResponse]
-    }
-
+    /** --- JIRA Setup --- **/
 
     /**
      * This is only intended to be run just when the database has been setup for
@@ -547,7 +611,7 @@ final class JiraInstanceManagerRest {
         HttpResponse setupDbResponse = unirest.post("/secure/SetupDatabase.jspa")
                 .field("databaseOption", "internal")
                 .field("atl_token", xsrfCookie.value)
-                .socketTimeout((6 * 60000))
+                .socketTimeout((8 * 60000))
                 .asEmpty()
 
         assert setupDbResponse.status == 302
@@ -559,6 +623,7 @@ final class JiraInstanceManagerRest {
 
     }
 
+    /** --- Project CRUD --- **/
 
     String getAvailableProjectKey(String prefix) {
 
@@ -591,60 +656,6 @@ final class JiraInstanceManagerRest {
 
     }
 
-    /**
-     * This will create a sample JSM project using the "Insight IT Service Management" template
-     * An associated Insight Schema will also be created.
-     * The project will contain issues, and the schema will contain objects
-     * @param name Name of the new project
-     * @param key Key of the new project
-     * @return A map containing information about the Project and Schema
-     */
-
-    Map createInsightProjectWithSampleData(String name, String key) {
-
-        ArrayList<Integer> preExistingSchemaIds = getInsightSchemas().id
-        ProjectBean projectBean = createSampleProject(name, key, "rlabs-project-template-itsm-demodata")
-        ObjectSchemaBean schemaBean = getInsightSchemas().find { !preExistingSchemaIds.contains(it.id) }
-
-        return [project: projectBean, schema: schemaBean]
-
-    }
-
-
-    /**
-     * Creates one of the template schemas, all but "empty" has objectTypes.
-     * None of the templates comes with objects
-     * @param name Schema name
-     * @param key Schema key
-     * @param template hr, empty, itassets, crm
-     * @return
-     */
-    ObjectSchemaBean createTemplateSchema(String name, String key, String template) {
-
-        assert ["hr", "empty", "itassets", "crm"].contains(template): "Unknown template type $template, valid choices are: hr, empty, itassets, crm"
-
-        log.info("\tWill create a new template schema")
-        log.debug("\t\tSchema name:" + name)
-        log.debug("\t\tSchema key:" + key)
-        log.debug("\t\tSchema template:" + template)
-
-        Map sampleSchemaMap = unirest.post("/rest/insight/1.0/objectschemaimport/template")
-                .cookie(sudoCookies)
-                .contentType("application/json")
-                .body([
-                        "status"         : "ok",
-                        "name"           : name,
-                        "objectSchemaKey": key,
-                        "type"           : template
-
-                ]).asJson().body.object.toMap()
-
-        log.info("\tSchema created with status ${sampleSchemaMap.status} and Id: " + sampleSchemaMap.id)
-        assert sampleSchemaMap.status == "Ok", "Error creating sample schema:" + sampleSchemaMap?.errors?.values()?.join(",")
-
-
-        return ObjectSchemaBean.fromMap(sampleSchemaMap)
-    }
 
 
     /**
@@ -749,6 +760,8 @@ final class JiraInstanceManagerRest {
 
 
     }
+
+    /** --- Scriptrunner Actions --- **/
 
     /**
      * Uses ScriptRunners feature "Test Runner" to execute JUnit and SPOCK tests
