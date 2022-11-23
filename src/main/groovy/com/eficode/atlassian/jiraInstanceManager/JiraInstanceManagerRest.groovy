@@ -1,13 +1,16 @@
 package com.eficode.atlassian.jiraInstanceManager
 
+import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
 import groovy.io.FileType
 import groovy.json.JsonSlurper
 import kong.unirest.Cookie
 import kong.unirest.Cookies
+import kong.unirest.GenericType
 import kong.unirest.GetRequest
 import kong.unirest.HttpResponse
+import kong.unirest.JsonNode
 import kong.unirest.Unirest
 import kong.unirest.UnirestException
 import kong.unirest.UnirestInstance
@@ -39,7 +42,7 @@ final class JiraInstanceManagerRest {
      */
     JiraInstanceManagerRest(String BaseUrl) {
         baseUrl = BaseUrl
-        unirest.config().defaultBaseUrl(BaseUrl)
+        unirest.config().defaultBaseUrl(BaseUrl).setDefaultBasicAuth(adminUsername, adminPassword)
 
     }
 
@@ -51,9 +54,9 @@ final class JiraInstanceManagerRest {
      */
     JiraInstanceManagerRest(String username, String password, String BaseUrl) {
         baseUrl = BaseUrl
-        unirest.config().defaultBaseUrl(BaseUrl)
         adminUsername = username
         adminPassword = password
+        unirest.config().defaultBaseUrl(baseUrl).setDefaultBasicAuth(adminUsername, adminPassword)
 
     }
 
@@ -152,6 +155,61 @@ final class JiraInstanceManagerRest {
 
     }
 
+    /**
+     *
+     * @param subPath
+     * @param returnOnlyKey If set, only the content of this JSON root key will be returned
+     * @return
+     */
+    ArrayList<JsonNode> getJsonPages(String subPath, Map queryParams = [:], String returnOnlyKey = "") {
+
+        return getJsonPages(unirest, subPath, queryParams, returnOnlyKey)
+    }
+
+
+    static ArrayList<Map> getJsonPages(UnirestInstance unirest, String subPath, Map queryParams = [:], String returnOnlyKey = "") {
+
+
+        int currentPageStart = 0
+        int resultsPerPage = 0
+        int expectedTotal = 1
+
+
+        ArrayList responses = []
+
+        while (responses.size() < expectedTotal) {
+
+
+            HttpResponse<Map> rawResponse = unirest.get(subPath)
+                    .accept("application/json")
+                    .queryString("startAt", currentPageStart + resultsPerPage)
+                    .queryString(queryParams).asObject(new GenericType<Map>() {})
+
+            Map response = rawResponse.body
+
+            currentPageStart = response.getOrDefault("startAt", -1) as int
+            resultsPerPage = response.getOrDefault("maxResults", -1) as int
+            expectedTotal = response.getOrDefault("total", -1) as int
+
+            if (returnOnlyKey) {
+                if (response.containsKey(returnOnlyKey)) {
+
+                    responses += response.get(returnOnlyKey) as ArrayList<Map>
+                } else {
+
+                    throw new InputMismatchException("Unexpected body returned from $subPath, expected JSON with \"$returnOnlyKey\"-node but got nodes: " + response.keySet().join(", "))
+                }
+
+            } else {
+                responses += response.body
+            }
+
+
+        }
+        return responses
+
+
+    }
 
     /**
      * Unirest by default gets lost when several redirects return cookies, this method will retain them
@@ -468,14 +526,12 @@ final class JiraInstanceManagerRest {
 
         if (scriptrunnerMap != null && scriptrunnerMap.enabled) {
             return true
-        }else {
+        } else {
             return false
         }
 
 
-
     }
-
 
 
     /** --- JIRA Setup --- **/
@@ -657,7 +713,6 @@ final class JiraInstanceManagerRest {
     }
 
 
-
     /**
      * This will create a sample project using one of the project templates
      * The project will contain issues
@@ -758,6 +813,17 @@ final class JiraInstanceManagerRest {
         Integer deleteStatus = unirest.delete("/rest/api/2/project/" + idOrKey.toString()).cookie(acquireWebSudoCookies()).asEmpty().status
         return deleteStatus == 204
 
+
+    }
+
+
+    /** --- Issue CRUD --- **/
+
+    ArrayList<IssueBean> jql(String jql) {
+
+        ArrayList<Map> rawResponse = getJsonPages("/rest/api/2/search", [jql: jql], "issues")
+
+        return IssueBean.fromArray(rawResponse)
 
     }
 
