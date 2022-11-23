@@ -1,5 +1,6 @@
 package com.eficode.atlassian.jiraInstanceManager
 
+import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
 import kong.unirest.Cookies
@@ -64,7 +65,7 @@ class JiraInstanceManagerRestSpec extends Specification {
     def "Test scriptRunnerIsInstalled"() {
 
         setup:
-        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
+        JiraInstanceManagerRest jira = getJiraInstanceManagerRest()
 
         expect:
         jira.scriptRunnerIsInstalled()
@@ -469,6 +470,60 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.info("\tFinished testing import and export of object schemas")
         Unirest.delete("/rest/insight/1.0/objectschema/" + sampleSchemaMap.id).cookie(sudoCookies).asEmpty()
         Unirest.delete("/rest/insight/1.0/objectschema/" + importSchemaId).cookie(sudoCookies).asEmpty()
+
+    }
+
+
+    String beanMapGenerator(Map map) {
+        String out = ""
+
+        out = "[\n${map.keySet().collect{it + ':""'}.join(",\n")}\n]"
+
+        return out
+
+    }
+
+    String beanGenerator(Map oneObject) {
+        String out = ""
+
+        oneObject.each { fieldName, value ->
+            if(value instanceof Map) {
+                out += value.getClass().simpleName + " " + fieldName + " = " + beanMapGenerator(value) + "\n"
+               // out += value.getClass().simpleName + " " + fieldName + " " + beanGenerator(value) + "\n"
+            }else {
+                out += value.getClass().simpleName + " " + fieldName + "\n"
+            }
+
+        }
+
+        return out
+    }
+
+
+
+    def "Test JQL"() {
+
+        setup:
+        log.info("Testing JQL")
+        String projectName = "JQL Test"
+        String projectKey = "JQL"
+        JiraInstanceManagerRest jira = getJiraInstanceManagerRest()
+
+        ProjectBean projectBean = jira.createJsmProjectWithSampleData(projectName, projectKey)
+
+
+        when:
+        ArrayList<IssueBean> issues = jira.jql("project = $projectKey ORDER BY id")
+
+
+        then:
+        issues.size() > 40
+        issues.every {it instanceof IssueBean}
+        log.info("\tJQL was tested successfully")
+
+
+        cleanup:
+        jira.deleteProject(projectKey)
 
     }
 
