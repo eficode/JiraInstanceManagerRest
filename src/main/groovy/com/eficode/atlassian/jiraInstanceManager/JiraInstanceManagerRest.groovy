@@ -591,7 +591,7 @@ final class JiraInstanceManagerRest {
         String setupAdminUrl = "/secure/SetupAdminAccount.jspa"
 
 
-        HttpResponse setupAdminResponse = unirest.post(setupAdminUrl)
+        HttpResponse setupAdminResponse = localUnirest.post(setupAdminUrl)
                 .cookie(cookies)
                 .field("fullname", "Mister Admin")
                 .field("email", "admin@admin.com")
@@ -609,7 +609,7 @@ final class JiraInstanceManagerRest {
         String setupEmailUrl = "/secure/SetupMailNotifications.jspa"
 
 
-        HttpResponse setupEmailResponse = unirest.post(setupEmailUrl)
+        HttpResponse setupEmailResponse = localUnirest.post(setupEmailUrl)
                 .cookie(cookies)
                 .field("noemail", "true")
                 .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
