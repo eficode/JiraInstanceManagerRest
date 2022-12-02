@@ -397,7 +397,7 @@ final class JiraInstanceManagerRest {
     Map createInsightProjectWithSampleData(String name, String key) {
 
         ArrayList<Integer> preExistingSchemaIds = getInsightSchemas().id
-        ProjectBean projectBean = createSampleProject(name, key, "rlabs-project-template-itsm-demodata")
+        ProjectBean projectBean = createDemoProject(name, key, "rlabs-project-template-itsm-demodata")
         ObjectSchemaBean schemaBean = getInsightSchemas().find { !preExistingSchemaIds.contains(it.id) }
 
         return [project: projectBean, schema: schemaBean]
@@ -708,13 +708,13 @@ final class JiraInstanceManagerRest {
 
     ProjectBean createJsmProjectWithSampleData(String name, String key) {
 
-        return createSampleProject(name, key, "sd-demo-project-itil-v2")
+        return createDemoProject(name, key, "sd-demo-project-itil-v2")
 
     }
 
 
     /**
-     * This will create a sample project using one of the project templates
+     * This will create a demo project with mock data using one of the project templates
      * The project will contain issues
      * @param name Name of the new project
      * @param key Key of the new project
@@ -724,7 +724,7 @@ final class JiraInstanceManagerRest {
      *  Project Management: core-demo-project<br>
      * @return A ProjectBean
      */
-    ProjectBean createSampleProject(String name, String key, String template) {
+    ProjectBean createDemoProject(String name, String key, String template) {
 
 
         log.info("Creating Project $name ($key) with sample data using template $template")
@@ -752,16 +752,22 @@ final class JiraInstanceManagerRest {
 
     }
 
-
     /**
-     * This will create a new JSM project with the "Basic" template
-     * @param name Name of the new project
-     * @param key Key of the new project
-     * @return A map containing the raw result from JIRAs api
-     *  returnMap.returnUrl -> link to the project
+     *
+     * @param name
+     * @param key
+     * @param template <br>
+     *  JSM:<br>
+     *  Basic JSM: com.atlassian.servicedesk:basic-service-desk-project<br>
+     *  ITSM: com.atlassian.servicedesk:itil-v2-service-desk-project<br>
+     *  Customer Service: com.atlassian.servicedesk:customer-service-desk-project<br>
+     *  <br>
+     *  Core:<br>
+     *  PM: com.atlassian.jira-core-project-templates:jira-core-project-management<br>
+     * @return
      */
-    ProjectBean createJsmProject(String name, String key) {
 
+    ProjectBean createNewProject(String name, String key, String template) {
         log.info("Creating Project $name ($key)")
         HttpResponse createProjectResponse = unirest.post("/rest/project-templates/1.0/templates")
                 .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
@@ -769,9 +775,10 @@ final class JiraInstanceManagerRest {
                 .header("X-Atlassian-Token", "no-check")
                 .field("name", name)
                 .field("key", key)
+                .field("lead", adminUsername)
                 .field("keyEdited", "false")
-                .field("projectTemplateWebItemKey", "com.atlassian.servicedesk:basic-service-desk-project")
-                .field("projectTemplateModuleKey", "com.atlassian.servicedesk:Abasic-service-desk-project")
+                .field("projectTemplateWebItemKey", template)
+                .field("projectTemplateModuleKey", template)
                 .asJson()
 
         assert createProjectResponse.status == 200, "Error creating project:" + createProjectResponse.body.toPrettyString()
@@ -782,6 +789,18 @@ final class JiraInstanceManagerRest {
         log.info("\tCreated Project:" + baseUrl + projectBean.returnUrl)
 
         return projectBean
+    }
+
+    /**
+     * This will create a new JSM project with the "Basic" template
+     * @param name Name of the new project
+     * @param key Key of the new project
+     */
+    ProjectBean createJsmProject(String name, String key) {
+
+        return createNewProject(name, key, "com.atlassian.servicedesk:basic-service-desk-project")
+
+
     }
 
 
