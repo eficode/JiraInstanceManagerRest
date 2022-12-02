@@ -48,7 +48,7 @@ jobs:
         run: |
           
           echo Compiling, Packaging and Installing Groovy 2.5 version of library to local m2 directory
-          mvn install -f pom.xml -DcreateChecksum=true -Dgroovy.major.version=2.5 -Dgroovy.version=2.5.18 -Dspock-core.version=2.2-groovy-2.5 -DjiraShortcuts.version=2.0-SNAPSHOT-groovy-2.5 -Dbitbucketinstancemanager.version=0.0.3-SNAPSHOT-groovy-2.5
+          mvn install -f pom.xml -DcreateChecksum=true -Dgroovy.major.version=2.5 -Dgroovy.version=2.5.18 -Dspock-core.version=2.2-groovy-2.5
       - name: Copying JAR files
         run: |
           echo Copying the new JAR files to repository which will be added to git branch "packages"
