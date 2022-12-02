@@ -41,14 +41,14 @@ jobs:
           
           mkdir -p repository/com/eficode/atlassian/jirainstancemanager
           echo Compiling, Packaging and Installing Groovy 3.0 version of library to local m2 directory
-          mvn install -P groovy-3
+          mvn install -P groovy-3 -DcreateChecksum=true
 
 
       - name: Installing Groovy 2.5 Version
         run: |
           
           echo Compiling, Packaging and Installing Groovy 2.5 version of library to local m2 directory
-          mvn install -P groovy-2.5
+          mvn install -P groovy-2.5 -DcreateChecksum=true
       - name: Copying JAR files
         run: |
           echo Copying the new JAR files to repository which will be added to git branch "packages"
