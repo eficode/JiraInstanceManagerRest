@@ -6,74 +6,77 @@
 
     <groupId>com.eficode.atlassian</groupId>
     <artifactId>jirainstancemanager</artifactId>
-    <version>1.2.0-SNAPSHOT</version>
-    <description>A groovy library for interacting with Jira REST API. NOT FOR PRODUCTION USER</description>
+    <version>1.3.0-SNAPSHOT-groovy-${groovy.major.version}</version>
+    <description>A groovy library for interacting with Jira REST API.</description>
+
+    <profiles>
+        <profile>
+            <id>groovy-3</id>
+            <properties>
+                <maven.compiler.source>11</maven.compiler.source>
+                <maven.compiler.target>11</maven.compiler.target>
+                <groovy.major.version>3.0</groovy.major.version>
+                <groovy.version>3.0.11</groovy.version>
+                <spock-core.version>2.2-groovy-3.0</spock-core.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>groovy-2.5</id>
+            <properties>
+                <maven.compiler.source>11</maven.compiler.source>
+                <maven.compiler.target>11</maven.compiler.target>
+                <groovy.major.version>2.5</groovy.major.version>
+                <groovy.version>2.5.18</groovy.version>
+                <spock-core.version>2.2-groovy-2.5</spock-core.version>
+            </properties>
+        </profile>
+    </profiles>
 
     <dependencies>
         <dependency>
             <groupId>com.konghq</groupId>
             <artifactId>unirest-java</artifactId>
-            <version>3.13.13</version>
+            <version>3.14.0</version>
             <classifier>standalone</classifier>
         </dependency>
         <dependency>
             <groupId>org.slf4j</groupId>
             <artifactId>slf4j-simple</artifactId>
-            <version>1.7.36</version>
+            <version>2.0.5</version>
         </dependency>
 
         <dependency>
             <groupId>org.codehaus.groovy</groupId>
             <artifactId>groovy-all</artifactId>
-            <version>2.5.17</version>
+            <version>${groovy.version}</version>
             <type>pom</type>
             <!--scope>provided</scope-->
         </dependency>
-
-        <dependency>
-            <groupId>org.spockframework</groupId>
-            <artifactId>spock-core</artifactId>
-            <version>2.1-groovy-2.5</version>
-            <scope>test</scope>
-        </dependency>
-
-
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.13.4.1</version>
-        </dependency>
-        <!-- Devstack currently used Groovy 3 and breaks when used in this project -->
-        <!--dependency>
-
-            <groupId>com.eficode</groupId>
-            <artifactId>devstack</artifactId>
-            <version>1.0.6-SNAPSHOT</version>
-            <scope>test</scope>
-
-        </dependency-->
-
-        <!--
         <dependency>
             <groupId>org.codehaus.groovy</groupId>
-            <artifactId>groovy-all</artifactId>
-            <version>3.0.11</version>
-            <type>pom</type>
+            <artifactId>groovy-xml</artifactId>
+            <version>${groovy.version}</version>
             <scope>provided</scope>
         </dependency>
 
         <dependency>
             <groupId>org.spockframework</groupId>
             <artifactId>spock-core</artifactId>
-            <version>2.2-M3-groovy-3.0</version>
+            <version>${spock-core.version}</version>
             <scope>test</scope>
         </dependency>
-        -->
+
+        <dependency>
+            <groupId>com.fasterxml.jackson.core</groupId>
+            <artifactId>jackson-databind</artifactId>
+            <version>2.14.0</version>
+        </dependency>
 
         <dependency>
             <groupId>org.apache.ivy</groupId>
             <artifactId>ivy</artifactId>
             <version>2.5.1</version>
+            <scope>provided</scope>
         </dependency>
     </dependencies>
 
@@ -94,8 +97,98 @@
 
 
     <build>
-        <!--sourceDirectory>${basedir}/src/main/groovy</sourceDirectory-->
+
+        <resources>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+            </resource>
+        </resources>
+
         <plugins>
+
+            <plugin>
+                <!-- Configured in pluginManagement instead of plugins, because we do not want a shaded parent POM -->
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-shade-plugin</artifactId>
+                <version>3.4.1</version>
+                <executions>
+                    <execution>
+                        <phase>package</phase>
+                        <goals>
+                            <goal>shade</goal>
+                        </goals>
+                        <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.GroovyResourceTransformer">
+                                    <extModuleName>the-aggregated-module</extModuleName>
+                                    <extModuleVersion>1.0.0</extModuleVersion>
+                                </transformer>
+                            </transformers>
+                            <!-- Will output 2 jars: the original, and the shaded one -->
+                            <shadedArtifactAttached>true</shadedArtifactAttached>
+
+                            <!-- final name of the shaded jar will be ${project.artifactId}-standalone -->
+                            <shadedClassifierName>standalone</shadedClassifierName>
+
+                            <filters>
+
+                                <filter>
+                                    <artifact>*:*</artifact>
+                                    <excludes>
+                                        <exclude>META-INF/*.SF</exclude>
+                                        <exclude>META-INF/*.DSA</exclude>
+                                        <exclude>META-INF/*.RSA</exclude>
+                                        <!--exclude>META-INF/groovy/*</exclude-->
+
+                                    </excludes>
+                                </filter>
+                            </filters>
+
+                            <artifactSet>
+                                <!--excludes>
+                                    <exclude>org.codehaus.groovy:groovy</exclude>
+                                </excludes-->
+
+                            </artifactSet>
+                            <relocations>
+                                <!--relocation>
+                                    <pattern>groovy</pattern>
+                                    <shadedPattern>com.eficode.shaded.groovy</shadedPattern>
+                                </relocation-->
+                                <!--relocation>
+                                    <pattern>org.codehaus</pattern>
+                                    <shadedPattern>com.eficode.shaded.org.codehaus</shadedPattern>
+                                </relocation-->
+                                <relocation>
+                                    <pattern>unirest</pattern>
+                                    <shadedPattern>com.eficode.shaded.unirest</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>kong</pattern>
+                                    <shadedPattern>com.eficode.shaded.kong</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.apache.http</pattern>
+                                    <shadedPattern>com.eficode.shaded.org.apache.http</shadedPattern>
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.apache.commons</pattern>
+                                    <shadedPattern>com.eficode.shaded.org.apache.commons</shadedPattern>
+                                </relocation>
+                            </relocations>
+
+                            <!-- NOTE: Any dependencies of the project will not show up in the standalone pom.
+                            This means that if those dependencies are not properly relocated and there is a class-loading conflict,
+                            user would not be able to figure out where the conflicting dependency is. -->
+                            <createDependencyReducedPom>true</createDependencyReducedPom>
+
+                        </configuration>
+                    </execution>
+                </executions>
+            </plugin>
+
+
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
@@ -116,6 +209,38 @@
                 <artifactId>gmavenplus-plugin</artifactId>
                 <version>1.13.1</version>
                 <executions>
+
+                    <execution>
+                        <id>add-dynamic-properties</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>execute</goal>
+                        </goals>
+                        <configuration>
+                            <scripts>
+                                <script>
+                                    <![CDATA[
+                                    log.info("TEST")
+                                ]]>
+                                </script>
+                            </scripts>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>add-dynamic-properties-v2</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>execute</goal>
+                        </goals>
+                        <configuration>
+                            <scripts>
+                                <script>
+                                    log.info("TEST2")
+                            </script>
+                            </scripts>
+                        </configuration>
+                    </execution>
+
                     <execution>
                         <goals>
                             <goal>addSources</goal>
@@ -125,33 +250,21 @@
                         </goals>
                     </execution>
                 </executions>
+
                 <dependencies>
-                    <dependency>
+                    <!--dependency>
                         <groupId>org.codehaus.groovy</groupId>
                         <artifactId>groovy</artifactId>
                         <version>2.5.17</version>
                         <scope>runtime</scope>
-                    </dependency>
+                    </dependency-->
                 </dependencies>
-                <!--configuration>
-                    <sources>
-                        <source>
-                            <directory>${project.basedir}/src/main/groovy</directory>
-                            <includes>
-                                <include>**/*.groovy</include>
-                            </includes>
-                        </source>
-                    </sources>
-                </configuration-->
+
 
             </plugin>
         </plugins>
     </build>
 
 
-    <properties>
-        <maven.compiler.source>11</maven.compiler.source>
-        <maven.compiler.target>11</maven.compiler.target>
-    </properties>
 
 </project>
