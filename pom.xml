@@ -50,12 +50,13 @@
             <artifactId>groovy-all</artifactId>
             <version>${groovy.version}</version>
             <type>pom</type>
-            <scope>provided</scope>
+            <!--scope>provided</scope-->
         </dependency>
         <dependency>
             <groupId>org.codehaus.groovy</groupId>
             <artifactId>groovy-xml</artifactId>
             <version>${groovy.version}</version>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
@@ -118,6 +119,12 @@
                             <goal>shade</goal>
                         </goals>
                         <configuration>
+                            <transformers>
+                                <transformer implementation="org.apache.maven.plugins.shade.resource.GroovyResourceTransformer">
+                                    <extModuleName>the-aggregated-module</extModuleName>
+                                    <extModuleVersion>1.0.0</extModuleVersion>
+                                </transformer>
+                            </transformers>
                             <!-- Will output 2 jars: the original, and the shaded one -->
                             <shadedArtifactAttached>true</shadedArtifactAttached>
 
@@ -132,21 +139,27 @@
                                         <exclude>META-INF/*.SF</exclude>
                                         <exclude>META-INF/*.DSA</exclude>
                                         <exclude>META-INF/*.RSA</exclude>
+                                        <!--exclude>META-INF/groovy/*</exclude-->
+
                                     </excludes>
                                 </filter>
                             </filters>
 
                             <artifactSet>
-                                <excludes>
+                                <!--excludes>
                                     <exclude>org.codehaus.groovy:groovy</exclude>
-                                </excludes>
+                                </excludes-->
 
                             </artifactSet>
                             <relocations>
-                                <relocation>
+                                <!--relocation>
                                     <pattern>groovy</pattern>
                                     <shadedPattern>com.eficode.shaded.groovy</shadedPattern>
-                                </relocation>
+                                </relocation-->
+                                <!--relocation>
+                                    <pattern>org.codehaus</pattern>
+                                    <shadedPattern>com.eficode.shaded.org.codehaus</shadedPattern>
+                                </relocation-->
                                 <relocation>
                                     <pattern>unirest</pattern>
                                     <shadedPattern>com.eficode.shaded.unirest</shadedPattern>
@@ -196,6 +209,38 @@
                 <artifactId>gmavenplus-plugin</artifactId>
                 <version>1.13.1</version>
                 <executions>
+
+                    <execution>
+                        <id>add-dynamic-properties</id>
+                        <phase>initialize</phase>
+                        <goals>
+                            <goal>execute</goal>
+                        </goals>
+                        <configuration>
+                            <scripts>
+                                <script>
+                                    <![CDATA[
+                                    log.info("TEST")
+                                ]]>
+                                </script>
+                            </scripts>
+                        </configuration>
+                    </execution>
+                    <execution>
+                        <id>add-dynamic-properties-v2</id>
+                        <phase>compile</phase>
+                        <goals>
+                            <goal>execute</goal>
+                        </goals>
+                        <configuration>
+                            <scripts>
+                                <script>
+                                    log.info("TEST2")
+                            </script>
+                            </scripts>
+                        </configuration>
+                    </execution>
+
                     <execution>
                         <goals>
                             <goal>addSources</goal>
