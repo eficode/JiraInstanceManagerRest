@@ -556,8 +556,10 @@ final class JiraInstanceManagerRest {
         Map redirectResponse = getCookiesFromRedirect("/")
         cookies = redirectResponse.cookies
 
+        UnirestInstance localUnirest = Unirest.spawnInstance()
+        localUnirest.config().defaultBaseUrl(baseUrl)
         String setupAppPropertiesUrl = "/secure/SetupApplicationProperties.jspa"
-        HttpResponse setAppProperties = unirest.post(setupAppPropertiesUrl)
+        HttpResponse setAppProperties = localUnirest.post(setupAppPropertiesUrl)
                 .cookie(cookies)
                 .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
                 .field("title", appTitle)
@@ -575,7 +577,7 @@ final class JiraInstanceManagerRest {
         String setLicenseUrl = "/secure/SetupLicense.jspa"
 
 
-        HttpResponse setupLicenceResponse = unirest.post(setLicenseUrl)
+        HttpResponse setupLicenceResponse = localUnirest.post(setLicenseUrl)
                 .cookie(cookies)
                 .field("setupLicenseKey", jiraLicense.replaceAll("[\n\r]", ""))
                 .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
@@ -616,6 +618,7 @@ final class JiraInstanceManagerRest {
         assert setupEmailResponse.status == 302, "Error setting up email"
         log.info("\t\tSet email successfully")
 
+        localUnirest.shutDown()
         return true
 
     }
@@ -630,11 +633,13 @@ final class JiraInstanceManagerRest {
 
         log.info("Setting up a blank H2 database for JIRA")
         long startTime = System.currentTimeMillis()
+        UnirestInstance localUnirest = Unirest.spawnInstance()
+        localUnirest.config().defaultBaseUrl(baseUrl)
         Cookie xsrfCookie = null
 
         while (startTime + (3 * 60000) > System.currentTimeMillis()) {
             try {
-                HttpResponse<String> response = unirest.get("/").asString()
+                HttpResponse<String> response = localUnirest.get("/").asString()
 
                 Cookie tempCookie = response.cookies.find { it.name == "atlassian.xsrf.token" }
 
@@ -660,16 +665,18 @@ final class JiraInstanceManagerRest {
 
         if (System.currentTimeMillis() > startTime + 180000) {
 
+            localUnirest.shutDown()
             throw new NoHttpResponseException("Timeout waiting for JIRA Setup dialog")
         }
 
         log.info("Setting up local H2 database, this will take a several minutes.")
-        HttpResponse setupDbResponse = unirest.post("/secure/SetupDatabase.jspa")
+        HttpResponse setupDbResponse = localUnirest.post("/secure/SetupDatabase.jspa")
                 .field("databaseOption", "internal")
                 .field("atl_token", xsrfCookie.value)
                 .socketTimeout((8 * 60000))
                 .asEmpty()
 
+        localUnirest.shutDown()
         assert setupDbResponse.status == 302
         assert setupDbResponse.headers.getFirst("Location").endsWith("SetupApplicationProperties!default.jspa")
 
