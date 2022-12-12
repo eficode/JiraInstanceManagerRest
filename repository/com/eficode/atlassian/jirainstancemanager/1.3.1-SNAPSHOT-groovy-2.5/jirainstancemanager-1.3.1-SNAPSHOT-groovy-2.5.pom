@@ -152,25 +152,29 @@
     <dependency>
       <groupId>org.codehaus.groovy</groupId>
       <artifactId>groovy-all</artifactId>
-      <version>3.0.11</version>
+      <version>2.5.18</version>
       <type>pom</type>
       <scope>compile</scope>
     </dependency>
     <dependency>
       <groupId>org.codehaus.groovy</groupId>
       <artifactId>groovy-xml</artifactId>
-      <version>3.0.11</version>
+      <version>2.5.18</version>
       <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.spockframework</groupId>
       <artifactId>spock-core</artifactId>
-      <version>2.2-groovy-3.0</version>
+      <version>2.2-groovy-2.5</version>
       <scope>test</scope>
       <exclusions>
         <exclusion>
           <artifactId>hamcrest</artifactId>
           <groupId>org.hamcrest</groupId>
+        </exclusion>
+        <exclusion>
+          <artifactId>spock-groovy2-compat</artifactId>
+          <groupId>org.spockframework</groupId>
         </exclusion>
       </exclusions>
     </dependency>
