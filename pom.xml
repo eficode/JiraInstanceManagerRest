@@ -59,7 +59,8 @@
             <groupId>org.codehaus.groovy</groupId>
             <artifactId>groovy-xml</artifactId>
             <version>${groovy.version}</version>
-            <scope>provided</scope>
+            <!--scope>provided</scope-->
+            <scope>compile</scope>
         </dependency>
 
         <dependency>
