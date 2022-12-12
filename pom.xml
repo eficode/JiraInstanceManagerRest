@@ -156,14 +156,18 @@
 
                             </artifactSet>
                             <relocations>
-                                <!--relocation>
+                                <relocation>
                                     <pattern>groovy</pattern>
                                     <shadedPattern>com.eficode.shaded.groovy</shadedPattern>
-                                </relocation-->
-                                <!--relocation>
+                                </relocation>
+                                <relocation>
                                     <pattern>org.codehaus</pattern>
                                     <shadedPattern>com.eficode.shaded.org.codehaus</shadedPattern>
-                                </relocation-->
+                                </relocation>
+                                <relocation>
+                                    <pattern>org.apache.groovy</pattern>
+                                    <shadedPattern>com.eficode.shaded.org.apache.groovy</shadedPattern>
+                                </relocation>
                                 <relocation>
                                     <pattern>unirest</pattern>
                                     <shadedPattern>com.eficode.shaded.unirest</shadedPattern>
