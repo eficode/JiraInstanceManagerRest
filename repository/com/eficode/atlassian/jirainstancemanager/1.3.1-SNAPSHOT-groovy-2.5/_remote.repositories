@@ -1,0 +1,6 @@
+#NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+#Mon Dec 12 10:03:46 UTC 2022
+jirainstancemanager-1.3.1-SNAPSHOT-groovy-2.5.jar>=
+jirainstancemanager-1.3.1-SNAPSHOT-groovy-2.5-sources.jar>=
+jirainstancemanager-1.3.1-SNAPSHOT-groovy-2.5.pom>=
+jirainstancemanager-1.3.1-SNAPSHOT-groovy-2.5-standalone.jar>=
