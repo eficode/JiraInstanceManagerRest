@@ -29,17 +29,7 @@
                 <maven.compiler.source>11</maven.compiler.source>
                 <maven.compiler.target>11</maven.compiler.target>
                 <groovy.major.version>2.5</groovy.major.version>
-                <groovy.version>2.5.19</groovy.version>
-                <spock-core.version>2.2-groovy-2.5</spock-core.version>
-            </properties>
-        </profile>
-        <profile>
-            <id>groovy-2.5.14</id>
-            <properties>
-                <maven.compiler.source>11</maven.compiler.source>
-                <maven.compiler.target>11</maven.compiler.target>
-                <groovy.major.version>2.5</groovy.major.version>
-                <groovy.version>2.5.14</groovy.version>
+                <groovy.version>2.5.18</groovy.version>
                 <spock-core.version>2.2-groovy-2.5</spock-core.version>
             </properties>
         </profile>
@@ -69,8 +59,7 @@
             <groupId>org.codehaus.groovy</groupId>
             <artifactId>groovy-xml</artifactId>
             <version>${groovy.version}</version>
-            <!--scope>provided</scope-->
-            <scope>compile</scope>
+            <scope>provided</scope>
         </dependency>
 
         <dependency>
@@ -166,18 +155,14 @@
 
                             </artifactSet>
                             <relocations>
-                                <relocation>
+                                <!--relocation>
                                     <pattern>groovy</pattern>
                                     <shadedPattern>com.eficode.shaded.groovy</shadedPattern>
-                                </relocation>
-                                <relocation>
+                                </relocation-->
+                                <!--relocation>
                                     <pattern>org.codehaus</pattern>
                                     <shadedPattern>com.eficode.shaded.org.codehaus</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.apache.groovy</pattern>
-                                    <shadedPattern>com.eficode.shaded.org.apache.groovy</shadedPattern>
-                                </relocation>
+                                </relocation-->
                                 <relocation>
                                     <pattern>unirest</pattern>
                                     <shadedPattern>com.eficode.shaded.unirest</shadedPattern>
