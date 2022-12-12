@@ -52,7 +52,7 @@ jobs:
           
             mvn versions:set -DnewVersion="$baseVersion-$profile"
           
-            mvn install -P "$package" -DcreateChecksum=true
+            mvn install -P "profile" -DcreateChecksum=true
             
           done
   
