@@ -44,18 +44,6 @@
               <artifactSet />
               <relocations>
                 <relocation>
-                  <pattern>groovy</pattern>
-                  <shadedPattern>com.eficode.shaded.groovy</shadedPattern>
-                </relocation>
-                <relocation>
-                  <pattern>org.codehaus</pattern>
-                  <shadedPattern>com.eficode.shaded.org.codehaus</shadedPattern>
-                </relocation>
-                <relocation>
-                  <pattern>org.apache.groovy</pattern>
-                  <shadedPattern>com.eficode.shaded.org.apache.groovy</shadedPattern>
-                </relocation>
-                <relocation>
                   <pattern>unirest</pattern>
                   <shadedPattern>com.eficode.shaded.unirest</shadedPattern>
                 </relocation>
@@ -177,6 +165,12 @@
       <version>2.5.14</version>
       <type>pom</type>
       <scope>compile</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.codehaus.groovy</groupId>
+      <artifactId>groovy-xml</artifactId>
+      <version>2.5.14</version>
+      <scope>provided</scope>
     </dependency>
     <dependency>
       <groupId>org.spockframework</groupId>
