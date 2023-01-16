@@ -35,27 +35,26 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
-      - name: Installing the different profile editions of the package
+      - name: Installing Groovy 3 version
         run: |
           
-          declare -a profiles=("groovy-2.5.14" "groovy-2.5" "groovy-3")  #Profiles to build
           
           mkdir -p repository/com/eficode/atlassian/jirainstancemanager
-          baseVersion=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          echo "Base version is $baseVersion"
+          echo Compiling, Packaging and Installing Groovy 3.0 version of library to local m2 directory
+          mvn install -P groovy-3 -DcreateChecksum=true
           
-          for profile in "${profiles[@]}"; do
-          
-            echo "Compiling, Packaging and Installing $baseVersion-$profile version of library to local m2 directory"
-          
-            mvn versions:revert
-          
-            mvn versions:set -DnewVersion="$baseVersion-$profile"
-          
-            mvn install -P "$profile" -DcreateChecksum=true
             
-          done
+      - name: Installing Groovy 2.5 Version
+        run: |
   
+          echo Compiling, Packaging and Installing Groovy 2.5 version of library to local m2 directory
+          mvn install -P groovy-2.5 -DcreateChecksum=true
+
+      - name: Installing Groovy 2.5.14 Version
+        run: |
+
+          echo Compiling, Packaging and Installing Groovy 2.5 version of library to local m2 directory
+          mvn install -P groovy-2.5.14 -DcreateChecksum=true
 
       - name: Copying JAR files
         run: |
