@@ -38,7 +38,7 @@ jobs:
       - name: Installing the different profile editions of the package
         run: |
           
-          declare -a profiles=("groovy-2.5.14" "groovy-2.5" "groovy-3.0")  #Profiles to build
+          declare -a profiles=("groovy-2.5.14" "groovy-2.5" "groovy-3")  #Profiles to build
           
           mkdir -p repository/com/eficode/atlassian/jirainstancemanager
           baseVersion=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
