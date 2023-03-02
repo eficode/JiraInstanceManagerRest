@@ -38,7 +38,7 @@ jobs:
       - name: Compile and install locally
         run: |
           
-          mkdir -p repository/com/eficode/devstack
+          mkdir -p repository/com/eficode/atlassian/jirainstancemanager/
           
           mvn help:effective-pom -P groovy-3,groovy-3.0.14 -Doutput=effective-pom.xml
           mvn install -f effective-pom.xml -DcreateChecksum=true 
