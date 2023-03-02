@@ -35,20 +35,26 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
-      - name: Installing Groovy 3 version
+      - name: Compile and install locally
         run: |
           
+          mkdir -p repository/com/eficode/atlassian/jirainstancemanager/
           
-          mkdir -p repository/com/eficode/atlassian/jirainstancemanager
-          echo Compiling, Packaging and Installing Groovy 3.0 version of library to local m2 directory
-          mvn install -P groovy-3 -DcreateChecksum=true
-
-
-      - name: Installing Groovy 2.5 Version
-        run: |
+          mvn help:effective-pom -P groovy-3,groovy-3.0.14 -Doutput=effective-pom.xml
+          mvn install -f effective-pom.xml -DcreateChecksum=true 
           
-          echo Compiling, Packaging and Installing Groovy 2.5 version of library to local m2 directory
-          mvn install -P groovy-2.5 -DcreateChecksum=true
+          mvn help:effective-pom -P groovy-3,groovy-3.0.13 -Doutput=effective-pom.xml
+          mvn install -f effective-pom.xml -DcreateChecksum=true 
+          
+          mvn help:effective-pom -P groovy-3,groovy-3.0.12 -Doutput=effective-pom.xml
+          mvn install -f effective-pom.xml -DcreateChecksum=true 
+
+          mvn help:effective-pom -P groovy-3,groovy-3.0.11 -Doutput=effective-pom.xml
+          mvn install -f effective-pom.xml -DcreateChecksum=true
+          
+
+          
+
       - name: Copying JAR files
         run: |
           echo Copying the new JAR files to repository which will be added to git branch "packages"
