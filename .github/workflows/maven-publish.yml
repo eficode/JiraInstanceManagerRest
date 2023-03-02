@@ -52,8 +52,7 @@ jobs:
           mvn help:effective-pom -P groovy-3,groovy-3.0.11 -Doutput=effective-pom.xml
           mvn install -f effective-pom.xml -DcreateChecksum=true
           
-          mvn help:effective-pom -P groovy-2.5,groovy-2.5.14 -Doutput=effective-pom.xml
-          mvn install -f effective-pom.xml -DcreateChecksum=true
+
           
 
       - name: Copying JAR files

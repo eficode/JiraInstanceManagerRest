@@ -43,27 +43,6 @@
             </properties>
         </profile>
 
-        <profile>
-            <id>groovy-2.5</id>
-            <properties>
-                <maven.compiler.source>11</maven.compiler.source>
-                <maven.compiler.target>11</maven.compiler.target>
-                <groovy.major.version>2.5</groovy.major.version>
-                <groovy.version>2.5.19</groovy.version>
-                <spock-core.version>2.2-groovy-2.5</spock-core.version>
-            </properties>
-        </profile>
-
-        <profile>
-            <id>groovy-2.5.14</id>
-            <properties>
-                <maven.compiler.source>11</maven.compiler.source>
-                <maven.compiler.target>11</maven.compiler.target>
-                <groovy.major.version>2.5.14</groovy.major.version>
-                <groovy.version>2.5.14</groovy.version>
-                <spock-core.version>2.2-groovy-2.5</spock-core.version>
-            </properties>
-        </profile>
     </profiles>
 
     <dependencies>
