@@ -3,12 +3,12 @@
   <groupId>com.eficode.atlassian</groupId>
   <artifactId>jirainstancemanager</artifactId>
   <versioning>
-    <release>1.3.2-SNAPSHOT-groovy-2.5.14</release>
+    <release>1.3.3-SNAPSHOT-groovy-3.0.11</release>
     <versions>
-      <version>1.3.2-SNAPSHOT-groovy-2.5</version>
-      <version>1.3.2-SNAPSHOT-groovy-3.0</version>
-      <version>1.3.2-SNAPSHOT-groovy-2.5.14</version>
+      <version>1.3.3-SNAPSHOT-groovy-3.0.13</version>
+      <version>1.3.3-SNAPSHOT-groovy-3.0.11</version>
+      <version>1.3.3-SNAPSHOT-groovy-3.0.12</version>
     </versions>
-    <lastUpdated>20230116181538</lastUpdated>
+    <lastUpdated>20230302095241</lastUpdated>
   </versioning>
 </metadata>
