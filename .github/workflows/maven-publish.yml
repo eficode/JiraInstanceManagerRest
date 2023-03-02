@@ -35,28 +35,25 @@ jobs:
           key: ${{ runner.os }}-maven-${{ hashFiles('**/pom.xml') }}
           restore-keys: |
             ${{ runner.os }}-maven-
-      - name: Installing Groovy 3 version
+      - name: Compile and install locally
         run: |
           
+          mkdir -p repository/com/eficode/devstack
           
-          mkdir -p repository/com/eficode/atlassian/jirainstancemanager
-          #echo Compiling, Packaging and Installing Groovy 3.0 version of library to local m2 directory
-          #mvn install -P groovy-3 -DcreateChecksum=true
+          mvn help:effective-pom -P groovy-3,groovy-3.0.14 -Doutput=effective-pom.xml
+          mvn install -f effective-pom.xml -DcreateChecksum=true 
           
-            
-      - name: Installing Groovy 2.5 Version
-        run: |
-  
-          #echo Compiling, Packaging and Installing Groovy 2.5 version of library to local m2 directory
-          #mvn install -P groovy-2.5 -DcreateChecksum=true
+          mvn help:effective-pom -P groovy-3,groovy-3.0.13 -Doutput=effective-pom.xml
+          mvn install -f effective-pom.xml -DcreateChecksum=true 
+          
+          mvn help:effective-pom -P groovy-3,groovy-3.0.12 -Doutput=effective-pom.xml
+          mvn install -f effective-pom.xml -DcreateChecksum=true 
 
-      - name: Installing Groovy 2.5.14 Version
-        run: |
-
-          echo Compiling, Packaging and Installing Groovy 2.5.14 version of library to local m2 directory
-          #mvn versions:set -DnewVersion=1.3.2-SNAPSHOT-groovy-2.5.14
-          mvn install -P groovy-2.5.14 -DcreateChecksum=true
-          #mvn versions:revert
+          mvn help:effective-pom -P groovy-3,groovy-3.0.11 -Doutput=effective-pom.xml
+          mvn install -f effective-pom.xml -DcreateChecksum=true
+          
+          mvn help:effective-pom -P groovy-2.5,groovy-2.5.14 -Doutput=effective-pom.xml
+          mvn install -f effective-pom.xml -DcreateChecksum=true
           
 
       - name: Copying JAR files
