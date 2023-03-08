@@ -440,6 +440,93 @@ final class JiraInstanceManagerRest {
         return ObjectSchemaBean.fromMap(sampleSchemaMap)
     }
 
+
+    //TODO should return better object
+    /**
+     * Creates a new Automation
+     * When: Object Updated
+     * If: $conditionAql matches
+     * Then: Execute groovy script scriptFilePath
+     * @param name
+     * @param actorKey
+     * @param conditionAql
+     * @param scriptFilePath An absolut path
+     * @param schemaId
+     * @return A raw map representing the automation
+     */
+    Map createScriptedObjectUpdatedAutomation(String name, String actorKey, String conditionAql, String scriptFilePath, String schemaId) {
+
+        createInsightAutomation(
+                name,
+                actorKey,
+                "Object updated",
+                "InsightObjectUpdatedEvent",
+                null,
+                null,
+                conditionAql,
+                "Execute Groovy script",
+                "com.riadalabs.jira.plugins.insight.services.automation.action.AutomationRuleGroovyScriptAction",
+                "{\"absFilePath\":\"${scriptFilePath}\"}",
+                schemaId)
+
+    }
+
+    Map createInsightAutomation(String name, String actorUserKey, String eventName, String eventTypeId, String eventIql = null, String eventCron = null, String conditionIql, String actionName, String actionTypeId, String actionData, String schemaId) {
+
+
+        LazyMap postBody = [
+                id                  : null,
+                name                : name,
+                description         : null,
+                schemaId            : schemaId,
+                actorUserKey        : actorUserKey,
+                disabled            : null,
+                events              : [
+                        [
+                                id    : null,
+                                name  : eventName,
+                                typeId: eventTypeId,
+                                iql   : eventIql,
+                                cron  : eventCron
+                        ]
+                ],
+                conditionsAndActions: [
+                        [
+                                id        : null,
+                                name      : null,
+                                conditions: [
+                                        [
+                                                id       : null,
+                                                name     : conditionIql,
+                                                condition: conditionIql
+                                        ]
+                                ],
+                                actions   : [
+                                        [
+                                                id                   : null,
+                                                name                 : actionName,
+                                                typeId               : actionTypeId,
+                                                data                 : actionData,
+                                                minTimeBetweenActions: null
+                                        ]
+                                ]
+                        ]
+                ],
+                created             : null,
+                updated             : null,
+                lastTimeOfAction    : null
+        ]
+
+        Cookies cookies = acquireWebSudoCookies()
+        HttpResponse<JsonNode> response = unirest.post("/rest/insight/1.0/automation/rule").cookie(cookies).header("Content-Type", "application/json").body(postBody).asJson()
+        assert response.status == 200: "Error creationg Asset Automation"
+
+        Map rawMap = response.body.object.toMap() as Map
+
+        return rawMap
+
+    }
+
     /** --- App management --- **/
 
     /**
@@ -1076,17 +1163,26 @@ final class JiraInstanceManagerRest {
                 .contentType("application/json")
                 .asJson()
 
-        assert groovyCacheResponse.body.object.toMap().output == "Groovy cache cleared."
 
+        if (groovyCacheResponse.status == 500) {
+            //Handle newer Script-runner versions
+            groovyCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.common.admin.ClearCache")
+                    .cookie(sudoCookies)
+                    .contentType("application/json")
+                    .asJson()
+            assert groovyCacheResponse.body.object.toMap().output == "Groovy cache cleared."
+        } else {
+            assert groovyCacheResponse.body.object.toMap().output == "Groovy cache cleared."
 
-        HttpResponse javaCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.JiraClearCaches")
-                .cookie(sudoCookies)
-                .body(["FIELD_WHICH_CACHE": "jira"])
-                .contentType("application/json")
-                .asJson()
+            HttpResponse javaCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.JiraClearCaches")
+                    .cookie(sudoCookies)
+                    .body(["FIELD_WHICH_CACHE": "jira"])
+                    .contentType("application/json")
+                    .asJson()
 
-        assert javaCacheResponse.body.object.toMap().output == "Jira cache cleared."
+            assert javaCacheResponse.body.object.toMap().output == "Jira cache cleared."
 
+        }
         if (rediscoverApps) {
 
             String rediscoverPluginsScriptBody = "import com.onresolve.scriptrunner.runner.customisers.WithPlugin\n"
