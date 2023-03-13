@@ -443,7 +443,6 @@ final class JiraInstanceManagerRest {
     }
 
 
-
     /**
      * Creates a new Automation
      * When: Object Updated
@@ -823,26 +822,39 @@ final class JiraInstanceManagerRest {
 
 
         log.info("Creating Project $name ($key) with sample data using template $template")
-        HttpResponse createProjectResponse = unirest.post("/rest/jira-importers-plugin/1.0/demo/create")
-                .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
-                .cookie(acquireWebSudoCookies())
-                .socketTimeout(60000 * 8)
-                .header("X-Atlassian-Token", "no-check")
-                .field("name", name)
-                .field("key", key.toUpperCase())
-                .field("lead", adminUsername)
-                .field("keyEdited", "false")
-                .field("projectTemplateWebItemKey", template)
-                .field("projectTemplateModuleKey", "undefined")
-                .asJson()
+        HttpResponse createProjectResponse
+        try {
+            createProjectResponse = unirest.post("/rest/jira-importers-plugin/1.0/demo/create")
+                    .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
+                    .cookie(acquireWebSudoCookies())
+                    .socketTimeout(60000 * 8)
+                    .header("X-Atlassian-Token", "no-check")
+                    .field("name", name)
+                    .field("key", key.toUpperCase())
+                    .field("lead", adminUsername)
+                    .field("keyEdited", "false")
+                    .field("projectTemplateWebItemKey", template)
+                    .field("projectTemplateModuleKey", "undefined")
+                    .asJson()
+            assert createProjectResponse.status == 200, "Error creating project:" + createProjectResponse.body.toPrettyString()
+        } catch (ex) {
+            log.error("Error when creating Demo project:" + ex.message)
+            throw ex
+        }
 
-        assert createProjectResponse.status == 200, "Error creating project:" + createProjectResponse.body.toPrettyString()
+        ProjectBean projectBean
+        try {
+            Map returnMap = createProjectResponse.body.object.toMap()
+            projectBean = returnMap as ProjectBean
 
-        Map returnMap = createProjectResponse.body.object.toMap()
-        ProjectBean projectBean = returnMap as ProjectBean
+            log.info("\tCreated Project: ${projectBean.projectKey}")
+            log.info("\t\tURL:" + (baseUrl + projectBean.returnUrl))
+        }catch (ex) {
+            log.error("Error when parsing data returned from API when creating Demo project:" + ex.message)
+            throw ex
+        }
 
-        log.info("\tCreated Project: ${projectBean.projectKey}")
-        log.info("\t\tURL:" + (baseUrl + projectBean.returnUrl))
+
         return projectBean
 
     }
