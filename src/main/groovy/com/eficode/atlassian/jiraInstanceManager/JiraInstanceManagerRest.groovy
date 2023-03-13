@@ -1,8 +1,10 @@
 package com.eficode.atlassian.jiraInstanceManager
 
+import com.eficode.atlassian.jiraInstanceManager.beans.AssetAutomationBean
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
+import groovy.ant.AntBuilder
 import groovy.io.FileType
 import groovy.json.JsonSlurper
 import kong.unirest.Cookie
@@ -438,6 +440,92 @@ final class JiraInstanceManagerRest {
 
 
         return ObjectSchemaBean.fromMap(sampleSchemaMap)
+    }
+
+
+
+    /**
+     * Creates a new Automation
+     * When: Object Updated
+     * If: $conditionAql matches
+     * Then: Execute groovy script scriptFilePath
+     * @param name
+     * @param actorKey
+     * @param conditionAql
+     * @param scriptFilePath An absolut path
+     * @param schemaId
+     * @return A raw map representing the automation
+     */
+    AssetAutomationBean createScriptedObjectUpdatedAutomation(String name, String actorKey, String conditionAql, String scriptFilePath, String schemaId) {
+
+        return createInsightAutomation(
+                name,
+                actorKey,
+                "Object updated",
+                "InsightObjectUpdatedEvent",
+                null,
+                null,
+                conditionAql,
+                "Execute Groovy script",
+                AssetAutomationBean.ActionType.GroovyScript.type,
+                "{\"absFilePath\":\"${scriptFilePath}\"}",
+                schemaId)
+
+    }
+
+    AssetAutomationBean createInsightAutomation(String name, String actorUserKey, String eventName, String eventTypeId, String eventIql = null, String eventCron = null, String conditionIql, String actionName, String actionTypeId, String actionData, String schemaId) {
+
+
+        LazyMap postBody = [
+                id                  : null,
+                name                : name,
+                description         : null,
+                schemaId            : schemaId,
+                actorUserKey        : actorUserKey,
+                disabled            : null,
+                events              : [
+                        [
+                                id    : null,
+                                name  : eventName,
+                                typeId: eventTypeId,
+                                iql   : eventIql,
+                                cron  : eventCron
+                        ]
+                ],
+                conditionsAndActions: [
+                        [
+                                id        : null,
+                                name      : null,
+                                conditions: [
+                                        [
+                                                id       : null,
+                                                name     : conditionIql,
+                                                condition: conditionIql
+                                        ]
+                                ],
+                                actions   : [
+                                        [
+                                                id                   : null,
+                                                name                 : actionName,
+                                                typeId               : actionTypeId,
+                                                data                 : actionData,
+                                                minTimeBetweenActions: null
+                                        ]
+                                ]
+                        ]
+                ],
+                created             : null,
+                updated             : null,
+                lastTimeOfAction    : null
+        ]
+
+        Cookies cookies = acquireWebSudoCookies()
+        HttpResponse<AssetAutomationBean> response = unirest.post("/rest/insight/1.0/automation/rule").cookie(cookies).header("Content-Type", "application/json").body(postBody).asObject(AssetAutomationBean.class)
+        assert response.status == 200: "Error creationg Asset Automation"
+
+
+        return response.body
+
     }
 
     /** --- App management --- **/
@@ -1076,17 +1164,26 @@ final class JiraInstanceManagerRest {
                 .contentType("application/json")
                 .asJson()
 
-        assert groovyCacheResponse.body.object.toMap().output == "Groovy cache cleared."
 
+        if (groovyCacheResponse.status == 500) {
+            //Handle newer Script-runner versions
+            groovyCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.common.admin.ClearCache")
+                    .cookie(sudoCookies)
+                    .contentType("application/json")
+                    .asJson()
+            assert groovyCacheResponse.body.object.toMap().output == "Groovy cache cleared."
+        } else {
+            assert groovyCacheResponse.body.object.toMap().output == "Groovy cache cleared."
 
-        HttpResponse javaCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.JiraClearCaches")
-                .cookie(sudoCookies)
-                .body(["FIELD_WHICH_CACHE": "jira"])
-                .contentType("application/json")
-                .asJson()
+            HttpResponse javaCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.JiraClearCaches")
+                    .cookie(sudoCookies)
+                    .body(["FIELD_WHICH_CACHE": "jira"])
+                    .contentType("application/json")
+                    .asJson()
 
-        assert javaCacheResponse.body.object.toMap().output == "Jira cache cleared."
+            assert javaCacheResponse.body.object.toMap().output == "Jira cache cleared."
 
+        }
         if (rediscoverApps) {
 
             String rediscoverPluginsScriptBody = "import com.onresolve.scriptrunner.runner.customisers.WithPlugin\n"
@@ -1320,6 +1417,48 @@ final class JiraInstanceManagerRest {
         log.trace("Installing Grape dependencies with script:")
         installScript.eachLine { log.trace("\t" + it) }
         return !executeLocalScriptFile(installScript).errors
+
+
+    }
+
+
+    /**
+     * Install InsightManager sources-files for use by ScriptRunner
+     * @param branch (Optional, default is master)
+     * @return true on success
+     */
+    boolean installInsightManagerSources(String branch = "master") {
+
+        UnirestInstance githubRest = Unirest.spawnInstance()
+
+        File tempDir = File.createTempDir()
+        File unzipDir = new File(tempDir.canonicalPath, "unzip")
+        assert unzipDir.mkdirs(): "Error creating temporary unzip dir:" + unzipDir.canonicalPath
+
+        HttpResponse<File> downloadResponse = githubRest.get("https://github.com/eficode/InsightManager/archive/refs/heads/${branch}.zip").asFile((tempDir.canonicalPath.endsWith("/") ?: tempDir.canonicalPath + "/").toString() + "${branch}.zip")
+        githubRest.shutDown()
+
+        File zipFile = new File(tempDir.canonicalPath, branch + ".zip")
+        assert zipFile.canRead(): "Error reading downloaded zip:" + zipFile.canonicalPath
+
+        AntBuilder ant = new AntBuilder()
+        def test = ant.unzip(src: zipFile.canonicalPath, dest: unzipDir.canonicalPath)
+
+        File srcRoot
+        unzipDir.eachDir {
+            if (srcRoot == null && it.canonicalPath.endsWith(branch)) {
+                srcRoot = new File(it.canonicalPath + "/src/main/groovy")
+            }
+        }
+
+        Map<String, String> filesToUpload = [:]
+
+        srcRoot.eachFileRecurse(FileType.FILES) {
+            filesToUpload.put(it.canonicalPath, srcRoot.relativePath(it))
+        }
+
+
+        return updateScriptrunnerFiles(filesToUpload) && tempDir.deleteDir()
 
 
     }
