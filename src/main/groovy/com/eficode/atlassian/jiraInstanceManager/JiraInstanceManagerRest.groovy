@@ -845,7 +845,7 @@ final class JiraInstanceManagerRest {
         ProjectBean projectBean
         try {
             Map returnMap = createProjectResponse.body.object.toMap()
-            projectBean = returnMap as ProjectBean
+            projectBean = ProjectBean.fromMap(returnMap)
 
             log.info("\tCreated Project: ${projectBean.projectKey}")
             log.info("\t\tURL:" + (baseUrl + projectBean.returnUrl))
@@ -891,7 +891,7 @@ final class JiraInstanceManagerRest {
         assert createProjectResponse.status == 200, "Error creating project:" + createProjectResponse.body.toPrettyString()
 
         Map returnMap = createProjectResponse.body.object.toMap()
-        ProjectBean projectBean = returnMap as ProjectBean
+        ProjectBean projectBean = ProjectBean.fromMap(returnMap)
 
         log.info("\tCreated Project:" + baseUrl + projectBean.returnUrl)
 
