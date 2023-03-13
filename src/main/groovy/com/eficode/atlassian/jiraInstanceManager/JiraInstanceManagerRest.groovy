@@ -811,17 +811,18 @@ final class JiraInstanceManagerRest {
      * This will create a demo project with mock data using one of the project templates
      * The project will contain issues
      * @param name Name of the new project
-     * @param key Key of the new project
+     * @param projectKey Key of the new project
      * @param template One of the predefined templates:<br>
      *  IT Service management: sd-demo-project-itil-v2<br>
      *  Insight IT Service Management: rlabs-project-template-itsm-demodata<br>
      *  Project Management: core-demo-project<br>
      * @return A ProjectBean
      */
-    ProjectBean createDemoProject(String name, String key, String template) {
+    ProjectBean createDemoProject(String name, String projectKey, String template) {
 
 
-        log.info("Creating Project $name ($key) with sample data using template $template")
+
+        log.info("Creating Project $name ($projectKey) with sample data using template $template")
         HttpResponse createProjectResponse
         try {
             createProjectResponse = unirest.post("/rest/jira-importers-plugin/1.0/demo/create")
@@ -830,7 +831,7 @@ final class JiraInstanceManagerRest {
                     .socketTimeout(60000 * 8)
                     .header("X-Atlassian-Token", "no-check")
                     .field("name", name)
-                    .field("key", key.toUpperCase())
+                    .field("key", projectKey.toUpperCase())
                     .field("lead", adminUsername)
                     .field("keyEdited", "false")
                     .field("projectTemplateWebItemKey", template)
@@ -1441,20 +1442,40 @@ final class JiraInstanceManagerRest {
      */
     boolean installInsightManagerSources(String branch = "master") {
 
+       return installGroovySources("https://github.com/eficode/InsightManager", branch)
+
+    }
+
+    boolean installJiraInstanceMgrSources (String branch = "master") {
+
+        return installGroovySources("https://github.com/eficode/JiraInstanceManagerRest", branch)
+
+    }
+
+
+    /**
+     * Installs Groovy sources from a Github repo.
+     * Requries that the sources be placed in $repoRoot/src/main/groovy/
+     * @param githubRepoUrl ex: "https://github.com/eficode/InsightManager"
+     * @param branch  (Optional, default is master)
+     * @return true on success
+     */
+    boolean installGroovySources(String githubRepoUrl, String branch = "master") {
+
         UnirestInstance githubRest = Unirest.spawnInstance()
 
         File tempDir = File.createTempDir()
         File unzipDir = new File(tempDir.canonicalPath, "unzip")
         assert unzipDir.mkdirs(): "Error creating temporary unzip dir:" + unzipDir.canonicalPath
 
-        HttpResponse<File> downloadResponse = githubRest.get("https://github.com/eficode/InsightManager/archive/refs/heads/${branch}.zip").asFile((tempDir.canonicalPath.endsWith("/") ?: tempDir.canonicalPath + "/").toString() + "${branch}.zip")
+        HttpResponse<File> downloadResponse = githubRest.get("$githubRepoUrl/archive/refs/heads/${branch}.zip").asFile((tempDir.canonicalPath.endsWith("/") ?: tempDir.canonicalPath + "/").toString() + "${branch}.zip")
         githubRest.shutDown()
 
         File zipFile = new File(tempDir.canonicalPath, branch + ".zip")
         assert zipFile.canRead(): "Error reading downloaded zip:" + zipFile.canonicalPath
 
         AntBuilder ant = new AntBuilder()
-        def test = ant.unzip(src: zipFile.canonicalPath, dest: unzipDir.canonicalPath)
+        ant.unzip(src: zipFile.canonicalPath, dest: unzipDir.canonicalPath)
 
         File srcRoot
         unzipDir.eachDir {
@@ -1474,6 +1495,8 @@ final class JiraInstanceManagerRest {
 
 
     }
+
+
 
 
 }
