@@ -1,8 +1,10 @@
 package com.eficode.atlassian.jiraInstanceManager
 
+import com.eficode.atlassian.jiraInstanceManager.beans.AssetAutomationBean
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
+import groovy.ant.AntBuilder
 import groovy.io.FileType
 import groovy.json.JsonSlurper
 import kong.unirest.Cookie
@@ -441,7 +443,7 @@ final class JiraInstanceManagerRest {
     }
 
 
-    //TODO should return better object
+
     /**
      * Creates a new Automation
      * When: Object Updated
@@ -454,9 +456,9 @@ final class JiraInstanceManagerRest {
      * @param schemaId
      * @return A raw map representing the automation
      */
-    Map createScriptedObjectUpdatedAutomation(String name, String actorKey, String conditionAql, String scriptFilePath, String schemaId) {
+    AssetAutomationBean createScriptedObjectUpdatedAutomation(String name, String actorKey, String conditionAql, String scriptFilePath, String schemaId) {
 
-        createInsightAutomation(
+        return createInsightAutomation(
                 name,
                 actorKey,
                 "Object updated",
@@ -465,13 +467,13 @@ final class JiraInstanceManagerRest {
                 null,
                 conditionAql,
                 "Execute Groovy script",
-                "com.riadalabs.jira.plugins.insight.services.automation.action.AutomationRuleGroovyScriptAction",
+                AssetAutomationBean.ActionType.GroovyScript.type,
                 "{\"absFilePath\":\"${scriptFilePath}\"}",
                 schemaId)
 
     }
 
-    Map createInsightAutomation(String name, String actorUserKey, String eventName, String eventTypeId, String eventIql = null, String eventCron = null, String conditionIql, String actionName, String actionTypeId, String actionData, String schemaId) {
+    AssetAutomationBean createInsightAutomation(String name, String actorUserKey, String eventName, String eventTypeId, String eventIql = null, String eventCron = null, String conditionIql, String actionName, String actionTypeId, String actionData, String schemaId) {
 
 
         LazyMap postBody = [
@@ -518,12 +520,11 @@ final class JiraInstanceManagerRest {
         ]
 
         Cookies cookies = acquireWebSudoCookies()
-        HttpResponse<JsonNode> response = unirest.post("/rest/insight/1.0/automation/rule").cookie(cookies).header("Content-Type", "application/json").body(postBody).asJson()
+        HttpResponse<AssetAutomationBean> response = unirest.post("/rest/insight/1.0/automation/rule").cookie(cookies).header("Content-Type", "application/json").body(postBody).asObject(AssetAutomationBean.class)
         assert response.status == 200: "Error creationg Asset Automation"
 
-        Map rawMap = response.body.object.toMap() as Map
 
-        return rawMap
+        return response.body
 
     }
 
@@ -1416,6 +1417,48 @@ final class JiraInstanceManagerRest {
         log.trace("Installing Grape dependencies with script:")
         installScript.eachLine { log.trace("\t" + it) }
         return !executeLocalScriptFile(installScript).errors
+
+
+    }
+
+
+    /**
+     * Install InsightManager sources-files for use by ScriptRunner
+     * @param branch (Optional, default is master)
+     * @return true on success
+     */
+    boolean installInsightManagerSources(String branch = "master") {
+
+        UnirestInstance githubRest = Unirest.spawnInstance()
+
+        File tempDir = File.createTempDir()
+        File unzipDir = new File(tempDir.canonicalPath, "unzip")
+        assert unzipDir.mkdirs(): "Error creating temporary unzip dir:" + unzipDir.canonicalPath
+
+        HttpResponse<File> downloadResponse = githubRest.get("https://github.com/eficode/InsightManager/archive/refs/heads/${branch}.zip").asFile((tempDir.canonicalPath.endsWith("/") ?: tempDir.canonicalPath + "/").toString() + "${branch}.zip")
+        githubRest.shutDown()
+
+        File zipFile = new File(tempDir.canonicalPath, branch + ".zip")
+        assert zipFile.canRead(): "Error reading downloaded zip:" + zipFile.canonicalPath
+
+        AntBuilder ant = new AntBuilder()
+        def test = ant.unzip(src: zipFile.canonicalPath, dest: unzipDir.canonicalPath)
+
+        File srcRoot
+        unzipDir.eachDir {
+            if (srcRoot == null && it.canonicalPath.endsWith(branch)) {
+                srcRoot = new File(it.canonicalPath + "/src/main/groovy")
+            }
+        }
+
+        Map<String, String> filesToUpload = [:]
+
+        srcRoot.eachFileRecurse(FileType.FILES) {
+            filesToUpload.put(it.canonicalPath, srcRoot.relativePath(it))
+        }
+
+
+        return updateScriptrunnerFiles(filesToUpload) && tempDir.deleteDir()
 
 
     }
