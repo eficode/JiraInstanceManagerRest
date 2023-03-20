@@ -1,5 +1,7 @@
 package com.eficode.atlassian.jiraInstanceManager.beans
 
+import com.fasterxml.jackson.annotation.JsonAnyGetter
+import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.databind.ObjectMapper
 
 class ProjectBean {
@@ -7,6 +9,8 @@ class ProjectBean {
     public Integer projectId
     public String projectKey
     public String projectName
+    public Map remoteProjectLinks
+    public Map<String, Object> unknownParameters = [:]
 
     static final ObjectMapper objectMapper = new ObjectMapper()
 
@@ -16,20 +20,15 @@ class ProjectBean {
         return objectMapper.convertValue(rawMap, ProjectBean.class)
     }
 
-    /*
-    ProjectBean(Map rawMap) {
-        returnUrl = rawMap.returnUrl
-        projectId = rawMap.projectId
-        projectKey = rawMap.projectKey
-        projectName = rawMap.projectName
 
+    @JsonAnyGetter
+    Map<String, Object> getUnknownParameters() {
+        return unknownParameters;
     }
 
-     */
+    @JsonAnySetter
+    void set(String name, Object value) {
+        unknownParameters.put(name, value);
 
-
-    boolean deleteProject() {
-
-        return deleteProject(projectId)
     }
 }

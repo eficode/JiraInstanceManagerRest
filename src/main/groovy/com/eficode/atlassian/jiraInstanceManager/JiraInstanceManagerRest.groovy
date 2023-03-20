@@ -443,7 +443,6 @@ final class JiraInstanceManagerRest {
     }
 
 
-
     /**
      * Creates a new Automation
      * When: Object Updated
@@ -794,6 +793,42 @@ final class JiraInstanceManagerRest {
 
 
     /**
+     * Get ID of a JSM projects portal
+     * @param projectKey
+     * @return
+     */
+    Integer getJsmPortalId(String projectKey) {
+
+        Map rawResponse = unirest.get("/rest/servicedeskapi/portals/project/$projectKey").cookie(acquireWebSudoCookies()).asObject(Map).body
+
+
+        return rawResponse.getOrDefault("id", null) as Integer
+
+    }
+
+    /**
+     * Get reuqest types available in a JSM portal
+     * @param portalId Id of the portal
+     * @param limit Nr of requests to fetch, max 100, default 50
+     * @return A map where each key is a request name and the value is the id, ex: [Get a guest wifi account : 3]
+     */
+    Map<String, Integer> getPortalRequestTypes(Integer portalId, Integer limit = 50) {
+
+        assert limit <= 100: "Can request maximum 100 request types"
+        //JSM pageination works different than the rest of JIRA
+
+        Map rawResponse = unirest.get("/rest/servicedeskapi/servicedesk/${portalId}/requesttype?limit=$limit").cookie(acquireWebSudoCookies()).asObject(Map).body
+
+
+        ArrayList<Map<String, Object>> requestTypes = rawResponse.getOrDefault("values", []) as ArrayList<Map<String, Object>>
+
+        return requestTypes.collectEntries { [(it.get("name")): it.get("id") as Integer] }
+
+
+    }
+
+
+    /**
      * This will create a sample JSM project using the "IT Service Management" template
      * The project will contain issues
      * @param name Name of the new project
@@ -812,37 +847,50 @@ final class JiraInstanceManagerRest {
      * This will create a demo project with mock data using one of the project templates
      * The project will contain issues
      * @param name Name of the new project
-     * @param key Key of the new project
+     * @param projectKey Key of the new project
      * @param template One of the predefined templates:<br>
      *  IT Service management: sd-demo-project-itil-v2<br>
      *  Insight IT Service Management: rlabs-project-template-itsm-demodata<br>
      *  Project Management: core-demo-project<br>
      * @return A ProjectBean
      */
-    ProjectBean createDemoProject(String name, String key, String template) {
+    ProjectBean createDemoProject(String name, String projectKey, String template) {
 
 
-        log.info("Creating Project $name ($key) with sample data using template $template")
-        HttpResponse createProjectResponse = unirest.post("/rest/jira-importers-plugin/1.0/demo/create")
-                .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
-                .cookie(acquireWebSudoCookies())
-                .socketTimeout(60000 * 8)
-                .header("X-Atlassian-Token", "no-check")
-                .field("name", name)
-                .field("key", key.toUpperCase())
-                .field("lead", adminUsername)
-                .field("keyEdited", "false")
-                .field("projectTemplateWebItemKey", template)
-                .field("projectTemplateModuleKey", "undefined")
-                .asJson()
+        log.info("Creating Project $name ($projectKey) with sample data using template $template")
+        HttpResponse createProjectResponse
+        try {
+            createProjectResponse = unirest.post("/rest/jira-importers-plugin/1.0/demo/create")
+                    .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
+                    .cookie(acquireWebSudoCookies())
+                    .socketTimeout(60000 * 8)
+                    .header("X-Atlassian-Token", "no-check")
+                    .field("name", name)
+                    .field("key", projectKey.toUpperCase())
+                    .field("lead", adminUsername)
+                    .field("keyEdited", "false")
+                    .field("projectTemplateWebItemKey", template)
+                    .field("projectTemplateModuleKey", "undefined")
+                    .asJson()
+            assert createProjectResponse.status == 200, "Error creating project:" + createProjectResponse.body.toPrettyString()
+        } catch (ex) {
+            log.error("Error when creating Demo project:" + ex.message)
+            throw ex
+        }
 
-        assert createProjectResponse.status == 200, "Error creating project:" + createProjectResponse.body.toPrettyString()
+        ProjectBean projectBean
+        try {
+            Map returnMap = createProjectResponse.body.object.toMap()
+            projectBean = ProjectBean.fromMap(returnMap)
 
-        Map returnMap = createProjectResponse.body.object.toMap()
-        ProjectBean projectBean = returnMap as ProjectBean
+            log.info("\tCreated Project: ${projectBean.projectKey}")
+            log.info("\t\tURL:" + (baseUrl + projectBean.returnUrl))
+        } catch (ex) {
+            log.error("Error when parsing data returned from API when creating Demo project:" + ex.message)
+            throw ex
+        }
 
-        log.info("\tCreated Project: ${projectBean.projectKey}")
-        log.info("\t\tURL:" + (baseUrl + projectBean.returnUrl))
+
         return projectBean
 
     }
@@ -879,7 +927,7 @@ final class JiraInstanceManagerRest {
         assert createProjectResponse.status == 200, "Error creating project:" + createProjectResponse.body.toPrettyString()
 
         Map returnMap = createProjectResponse.body.object.toMap()
-        ProjectBean projectBean = returnMap as ProjectBean
+        ProjectBean projectBean = ProjectBean.fromMap(returnMap)
 
         log.info("\tCreated Project:" + baseUrl + projectBean.returnUrl)
 
@@ -938,6 +986,73 @@ final class JiraInstanceManagerRest {
         ArrayList<Map> rawResponse = getJsonPages("/rest/api/2/search", [jql: jql], "issues")
 
         return IssueBean.fromArray(rawResponse)
+
+    }
+
+    IssueBean createIssue(String projectKey, String issueType, String summary, String description = "", String reporterName = "", String assigneeName = "", Map fieldValues = [:]) {
+
+        fieldValues.each
+
+        Map requestBody = [
+                fields: [
+                        project    : [
+                                key: projectKey
+                        ],
+                        "assignee" : [name: assigneeName],
+                        "reporter" : [name: reporterName],
+                        summary    : summary,
+                        description: description,
+                        issuetype  : [
+                                name: issueType
+                        ]
+                ] + fieldValues
+        ]
+
+        HttpResponse<Map> rawResponse = unirest.post("/rest/api/2/issue").cookie(acquireWebSudoCookies()).contentType("application/json").body(requestBody).asObject(Map)
+
+        return jql("key = \"${rawResponse.body.get("key")}\"").find {true}
+    }
+
+
+    /** --- Field CRUD --- **/
+
+
+    ArrayList<String> getFieldIds(String fieldName) {
+
+        ArrayList<Map<String, Object>> allFields = getFieldsRaw()
+
+        ArrayList<Map<String, Object>> filteredFields = allFields.findAll { it.name == fieldName }
+
+        ArrayList<String> filteredFieldIds = filteredFields?.id
+        return filteredFieldIds
+
+    }
+
+    String getFieldId(String fieldName, String fieldType) {
+
+        ArrayList<Map<String, Object>> allFields = getFieldsRaw()
+
+        ArrayList<Map<String, Object>> filteredFields = allFields.findAll { it.name == fieldName && it?.schema?.type == fieldType }
+
+        if (filteredFields.size() > 1) {
+            throw new InputMismatchException("Found multiple fields wiht name \"$fieldName\" of type: \"$fieldType\":" + filteredFields.id.toString())
+        } else if (filteredFields.size() == 1) {
+            return filteredFields.first().id
+        } else {
+            return null
+        }
+
+
+    }
+
+    ArrayList<Map<String, Object>> getFieldsRaw() {
+
+
+        ArrayList<Map<String, Object>> rawResponse = unirest.get("/rest/api/2/field").cookie(acquireWebSudoCookies()).asObject(new GenericType<ArrayList<Map<String, Object>>>() {
+        }).body
+
+        return rawResponse
+
 
     }
 
@@ -1429,20 +1544,40 @@ final class JiraInstanceManagerRest {
      */
     boolean installInsightManagerSources(String branch = "master") {
 
+        return installGroovySources("https://github.com/eficode/InsightManager", branch)
+
+    }
+
+    boolean installJiraInstanceMgrSources(String branch = "master") {
+
+        return installGroovySources("https://github.com/eficode/JiraInstanceManagerRest", branch)
+
+    }
+
+
+    /**
+     * Installs Groovy sources from a Github repo.
+     * Requries that the sources be placed in $repoRoot/src/main/groovy/
+     * @param githubRepoUrl ex: "https://github.com/eficode/InsightManager"
+     * @param branch (Optional, default is master)
+     * @return true on success
+     */
+    boolean installGroovySources(String githubRepoUrl, String branch = "master") {
+
         UnirestInstance githubRest = Unirest.spawnInstance()
 
         File tempDir = File.createTempDir()
         File unzipDir = new File(tempDir.canonicalPath, "unzip")
         assert unzipDir.mkdirs(): "Error creating temporary unzip dir:" + unzipDir.canonicalPath
 
-        HttpResponse<File> downloadResponse = githubRest.get("https://github.com/eficode/InsightManager/archive/refs/heads/${branch}.zip").asFile((tempDir.canonicalPath.endsWith("/") ?: tempDir.canonicalPath + "/").toString() + "${branch}.zip")
+        HttpResponse<File> downloadResponse = githubRest.get("$githubRepoUrl/archive/refs/heads/${branch}.zip").asFile((tempDir.canonicalPath.endsWith("/") ?: tempDir.canonicalPath + "/").toString() + "${branch}.zip")
         githubRest.shutDown()
 
         File zipFile = new File(tempDir.canonicalPath, branch + ".zip")
         assert zipFile.canRead(): "Error reading downloaded zip:" + zipFile.canonicalPath
 
         AntBuilder ant = new AntBuilder()
-        def test = ant.unzip(src: zipFile.canonicalPath, dest: unzipDir.canonicalPath)
+        ant.unzip(src: zipFile.canonicalPath, dest: unzipDir.canonicalPath)
 
         File srcRoot
         unzipDir.eachDir {
