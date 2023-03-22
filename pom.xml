@@ -27,6 +27,12 @@
         <profile>
             <id>groovy-3.0.14</id>
             <properties>
+                <groovy.version>3.0.14</groovy.version>
+            </properties>
+        </profile>
+        <profile>
+            <id>groovy-3.0.13</id>
+            <properties>
                 <groovy.version>3.0.13</groovy.version>
             </properties>
         </profile>
