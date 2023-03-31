@@ -178,6 +178,7 @@
                                     <exclude>org.codehaus.groovy:groovy</exclude>
                                 </excludes-->
                                 <excludes>
+                                    <exclude>org.junit.jupiter:*</exclude>
                                     <exclude>org.codehaus.groovy:*</exclude>
                                     <exclude>org.junit:*</exclude>
                                     <exclude>junit:*</exclude>
