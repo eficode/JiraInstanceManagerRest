@@ -6,7 +6,7 @@
 
     <groupId>com.eficode.atlassian</groupId>
     <artifactId>jirainstancemanager</artifactId>
-    <version>1.3.6-SNAPSHOT</version>
+    <version>1.3.6.1-SNAPSHOT</version>
     <description>A groovy library for interacting with Jira REST API.</description>
 
     <profiles>
@@ -78,7 +78,8 @@
             <artifactId>groovy-all</artifactId>
             <version>[3.0,4.0)</version>
             <type>pom</type>
-            <scope>runtime</scope>
+            <!--Scopes dont fix the problem-->
+            <scope>provided</scope>
             <exclusions>
                 <!--exclusion>
                     Doesn't work, just more stuff from all will error instead
