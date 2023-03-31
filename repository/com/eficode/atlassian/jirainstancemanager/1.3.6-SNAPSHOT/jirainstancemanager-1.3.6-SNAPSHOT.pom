@@ -394,6 +394,12 @@
       <version>[3.0,4.0)</version>
       <type>pom</type>
       <scope>compile</scope>
+      <exclusions>
+        <exclusion>
+          <artifactId>groovy-datetime</artifactId>
+          <groupId>org.codehaus.groovy</groupId>
+        </exclusion>
+      </exclusions>
     </dependency>
     <dependency>
       <groupId>org.codehaus.groovy</groupId>
