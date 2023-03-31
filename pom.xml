@@ -78,12 +78,13 @@
             <artifactId>groovy-all</artifactId>
             <version>[3.0,4.0)</version>
             <type>pom</type>
-            <!--scope>provided</scope-->
+            <scope>provided</scope>
             <exclusions>
-                <exclusion>
+                <!--exclusion>
+                    Doesn't work, just more stuff from all will error instead
                     <groupId>org.codehaus.groovy</groupId>
                     <artifactId>groovy-datetime</artifactId>
-                </exclusion>
+                </exclusion-->
             </exclusions>
         </dependency>
         <dependency>
