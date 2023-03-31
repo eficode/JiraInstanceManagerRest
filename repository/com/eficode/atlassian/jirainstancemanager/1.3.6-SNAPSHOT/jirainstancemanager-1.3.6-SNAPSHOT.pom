@@ -75,6 +75,7 @@
               </filters>
               <artifactSet>
                 <excludes>
+                  <exclude>org.junit.jupiter:*</exclude>
                   <exclude>org.codehaus.groovy:*</exclude>
                   <exclude>org.junit:*</exclude>
                   <exclude>junit:*</exclude>
