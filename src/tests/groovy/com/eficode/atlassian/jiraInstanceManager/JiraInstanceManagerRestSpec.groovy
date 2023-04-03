@@ -188,7 +188,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         then: "They should all succeed and return the same data"
         //Checking SRs old and new way of reporting
         spockPackageOut?.passedMethods == ["A successful test in JiraLocalSpockTest"] || spockPackageOut.events.find {it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent")}.testIdentifier.displayName  == "A successful test in JiraLocalSpockTest"
-        spockPackageOut?.failedMethods == [:] || spockPackageOut.events.find {it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent")}.testExecutionResult.status == "SUCCESSFUL"
+        spockPackageOut?.failedMethods == [:] || spockPackageOut.events.findAll { it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent") }.testExecutionResult.status.every{it == "SUCCESSFUL"}
         spockPackageOut?.ignoredMethods == [] || spockPackageOut?.ignoredMethods == null
         spockClassOut == spockMethodOut && spockClassOut == spockClassOut
         log.info("\tSuccessfully tested running the main package test")
@@ -202,10 +202,12 @@ class JiraInstanceManagerRestSpec extends Specification {
         spockClassOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest")
         spockMethodOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
 
+        def test = spockPackageOut.events.findAll {it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent")}.testIdentifier.displayName
 
         then: "The new test should be run when running a package test, but not when running the old class and method tests"
-        assert spockPackageOut?.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"] || spockPackageOut.events.findAll {it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent")}.testIdentifier.displayName ==  ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"]: "The spock package run did not run both the expected tests"
-        assert spockPackageOut.failedMethods == [:]: "The spock package run returned failed methods"
+
+        assert spockPackageOut?.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"] || spockPackageOut.events.findAll {it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent")}.testIdentifier.displayName.contains("A successful test in JiraLocalSpockTest") ==  ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"]: "The spock package run did not run both the expected tests"
+        assert spockPackageOut?.failedMethods == [:]: "The spock package run returned failed methods"
         assert spockPackageOut.ignoredMethods == []: "The spock package run returned ignored methods"
         assert spockPackageOut != spockClassOut: "The spock class run not be the same as the package run"
         assert spockClassOut == spockMethodOut: "The spock class and method run should be the same"
