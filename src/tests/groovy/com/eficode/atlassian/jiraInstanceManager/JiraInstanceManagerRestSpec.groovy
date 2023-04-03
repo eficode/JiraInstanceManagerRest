@@ -3,6 +3,8 @@ package com.eficode.atlassian.jiraInstanceManager
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
+import com.eficode.devstack.deployment.impl.JsmH2Deployment
+import de.gesellix.docker.remote.api.ContainerState
 import groovy.io.FileType
 import kong.unirest.Cookies
 import kong.unirest.HttpResponse
@@ -23,15 +25,15 @@ import spock.lang.Specification
  *
  *
  *
-     import com.eficode.devstack.deployment.impl.JsmH2Deployment
-     JsmH2Deployment jsmD = new JsmH2Deployment(jiraUrl)
-     jsmD.setupSecureDockerConnection(dockerHost, dockerCertPath)
-     jsmD.setJiraLicense(new File(projectRoot.path + "/resources/jira/licenses/jsm.license").text)
-     jsmD.appsToInstall = [
-        "https://marketplace.atlassian.com/download/apps/6820/version/1006580"  : new File(projectRoot.path + "/resources/jira/licenses/scriptrunnerForJira.license").text
-     ]
-     jsmD.removeDeployment()
-     jsmD.setupDeployment()
+ import com.eficode.devstack.deployment.impl.JsmH2Deployment
+ JsmH2Deployment jsmD = new JsmH2Deployment(jiraUrl)
+ jsmD.setupSecureDockerConnection(dockerHost, dockerCertPath)
+ jsmD.setJiraLicense(new File(projectRoot.path + "/resources/jira/licenses/jsm.license").text)
+ jsmD.appsToInstall = [
+ "https://marketplace.atlassian.com/download/apps/6820/version/1006580"  : new File(projectRoot.path + "/resources/jira/licenses/scriptrunnerForJira.license").text
+ ]
+ jsmD.removeDeployment()
+ jsmD.setupDeployment()
  */
 
 class JiraInstanceManagerRestSpec extends Specification {
@@ -40,7 +42,18 @@ class JiraInstanceManagerRestSpec extends Specification {
     static Logger log = LoggerFactory.getLogger(JiraInstanceManagerRest.class)
 
     @Shared
-    static String baseUrl = "http://jira.domain.se:8080"
+    static String baseUrl = "http://jira.localhost:8080"
+
+    @Shared
+    static JsmH2Deployment jsmDep = new JsmH2Deployment(baseUrl)
+
+    @Shared
+    static boolean reuseContainer = true //If true and container is already setup, it will be re-used.
+
+    @Shared
+    static String jsmLicense = new File(System.getProperty("user.home") + "/.licenses/jira/jsm.license").text
+    @Shared
+    static String srLicense = new File(System.getProperty("user.home") + "/.licenses/jira/sr.license").text
 
 
     @Shared
@@ -55,9 +68,20 @@ class JiraInstanceManagerRestSpec extends Specification {
     def setupSpec() {
 
         Unirest.config().defaultBaseUrl(baseUrl).setDefaultBasicAuth(restAdmin, restPw)
-        sudoCookies =  new JiraInstanceManagerRest(restAdmin, restPw, baseUrl).acquireWebSudoCookies()
 
-        assert sudoCookies
+        jsmDep.setJiraLicense(jsmLicense)
+
+        if (!(reuseContainer && jsmDep?.jsmContainer?.status() == ContainerState.Status.Running)){
+            jsmDep.appsToInstall = ["https://marketplace.atlassian.com/download/apps/6820/version/1006780": srLicense]
+            //Stop and remove if already existing
+            jsmDep.stopAndRemoveDeployment()
+
+            //Start and wait for the deployment
+            jsmDep.setupDeployment()
+        }
+
+        sudoCookies = new JiraInstanceManagerRest(restAdmin, restPw, baseUrl).acquireWebSudoCookies()
+        assert sudoCookies && jsmDep.jsmContainer.status() == ContainerState.Status.Running
     }
 
     JiraInstanceManagerRest getJiraInstanceManagerRest() {
@@ -145,7 +169,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.info("\tUsing test files found in local dir:" + jiraLocalScriptsDir.name)
 
         //Cleanup already uploaded test scripts to get to a known state
-        jiraLocalScriptsDir.eachFileRecurse(FileType.FILES) {scriptFile ->
+        jiraLocalScriptsDir.eachFileRecurse(FileType.FILES) { scriptFile ->
             String scriptRelativePath = jiraLocalScriptRootDir.relativePath(scriptFile)
             log.debug("\tClearing test file on JIRA server: " + scriptRelativePath)
 
@@ -154,7 +178,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "When running the main test as packageToRun, classToRun and methodToRun"
         log.info("Uploading main package test class")
-        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy") : "Error updating main spock package file"
+        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"): "Error updating main spock package file"
 
         log.info("\tRunning matching package, class and method tests")
         LazyMap spockPackageOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
@@ -162,15 +186,16 @@ class JiraInstanceManagerRestSpec extends Specification {
         LazyMap spockMethodOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
 
         then: "They should all succeed and return the same data"
-        spockPackageOut.passedMethods == ["A successful test in JiraLocalSpockTest"]
-        spockPackageOut.failedMethods == [:]
-        spockPackageOut.ignoredMethods == []
+        //Checking SRs old and new way of reporting
+        spockPackageOut?.passedMethods == ["A successful test in JiraLocalSpockTest"] || spockPackageOut.events.find {it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent")}.testIdentifier.displayName  == "A successful test in JiraLocalSpockTest"
+        spockPackageOut?.failedMethods == [:] || spockPackageOut.events.find {it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent")}.testExecutionResult.status == "SUCCESSFUL"
+        spockPackageOut?.ignoredMethods == [] || spockPackageOut?.ignoredMethods == null
         spockClassOut == spockMethodOut && spockClassOut == spockClassOut
         log.info("\tSuccessfully tested running the main package test")
 
         when: "When adding a Spock test to a sub package"
         log.info("Uploading sup package test class")
-        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy") : "Error updating sub package file"
+        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"): "Error updating sub package file"
 
         log.info("\tRunning the same package, class and method tests")
         spockPackageOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
@@ -179,17 +204,17 @@ class JiraInstanceManagerRestSpec extends Specification {
 
 
         then: "The new test should be run when running a package test, but not when running the old class and method tests"
-        assert spockPackageOut.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"] : "The spock package run did not run both the expected tests"
-        assert spockPackageOut.failedMethods == [:] : "The spock package run returned failed methods"
-        assert spockPackageOut.ignoredMethods == [] : "The spock package run returned ignored methods"
-        assert spockPackageOut != spockClassOut : "The spock class run not be the same as the package run"
-        assert spockClassOut == spockMethodOut : "The spock class and method run should be the same"
+        assert spockPackageOut?.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"] || spockPackageOut.events.findAll {it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent")}.testIdentifier.displayName ==  ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"]: "The spock package run did not run both the expected tests"
+        assert spockPackageOut.failedMethods == [:]: "The spock package run returned failed methods"
+        assert spockPackageOut.ignoredMethods == []: "The spock package run returned ignored methods"
+        assert spockPackageOut != spockClassOut: "The spock class run not be the same as the package run"
+        assert spockClassOut == spockMethodOut: "The spock class and method run should be the same"
         log.info("\tThe new sup package test class was only run by the package test")
 
 
         when: "Adding a failing test to the main package"
         log.info("Uploading failing test class")
-        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy") : "Error updating failing test file"
+        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
 
         log.info("\tRunning the same package, class and method tests")
         spockPackageOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
@@ -197,13 +222,12 @@ class JiraInstanceManagerRestSpec extends Specification {
         spockMethodOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
 
 
-
         then: "Two successful tests and one failed should be returned"
-        assert spockPackageOut.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"] : "The spock package run did not run both the expected successful tests"
-        assert spockPackageOut.failedMethods.toString().contains("A failed test in JiraLocalSpockTest") :  "The spock package run did not return the failed methods"
-        assert spockPackageOut.ignoredMethods == [] : "The spock package run returned ignored methods"
+        assert spockPackageOut.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"]: "The spock package run did not run both the expected successful tests"
+        assert spockPackageOut.failedMethods.toString().contains("A failed test in JiraLocalSpockTest"): "The spock package run did not return the failed methods"
+        assert spockPackageOut.ignoredMethods == []: "The spock package run returned ignored methods"
 
-        assert spockClassOut == spockMethodOut : "The spock class and method run should be the same"
+        assert spockClassOut == spockMethodOut: "The spock class and method run should be the same"
 
 
     }
@@ -229,7 +253,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         expect:
         !jiraR.getProjects().empty
-        jiraR.getProjects().every {it instanceof ProjectBean}
+        jiraR.getProjects().every { it instanceof ProjectBean }
 
     }
 
@@ -424,8 +448,6 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.info("Will test creation of Insight sample project")
 
 
-
-
         JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
         jira.acquireWebSudoCookies()
 
@@ -434,7 +456,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         ArrayList<Integer> preExistingSchemaIds = jira.getInsightSchemas().id
 
-        when:"When creating the project"
+        when: "When creating the project"
         Map resultMap = jira.createInsightProjectWithSampleData(projectName, projectKey)
 
         then: "Project and schema should be returned"
@@ -442,18 +464,14 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert resultMap.project.projectKey == projectKey
         assert resultMap.project.projectName == projectName
         assert resultMap.schema
-        assert ! preExistingSchemaIds.contains(resultMap.schema.id as int)
-        assert jira.projects.find {it.projectId == resultMap.project.projectId} : "getProjects() could not find project"
+        assert !preExistingSchemaIds.contains(resultMap.schema.id as int)
+        assert jira.projects.find { it.projectId == resultMap.project.projectId }: "getProjects() could not find project"
         log.info("\tSchema and project successfully created")
-
 
 
         cleanup:
         jira.deleteInsightSchema(resultMap.schema.id as int)
         jira.deleteProject(resultMap.project)
-
-
-
 
 
     }
@@ -538,12 +556,12 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.trace("getInsightSchemas() returned schemas:" + schemas.name)
 
         then: "Should contain both schemas"
-        assert schemas.find { it.id == sampleSchemaMap.id && it.objectSchemaKey == sampleSchemaMap.objectSchemaKey } : "Expected API to find source schema (Key: ${sampleSchemaMap.objectSchemaKey}, Id: ${sampleSchemaMap.id} )"
-        assert schemas.find {it.objectSchemaKey == srcSchemaKey + "IMP" }
+        assert schemas.find { it.id == sampleSchemaMap.id && it.objectSchemaKey == sampleSchemaMap.objectSchemaKey }: "Expected API to find source schema (Key: ${sampleSchemaMap.objectSchemaKey}, Id: ${sampleSchemaMap.id} )"
+        assert schemas.find { it.objectSchemaKey == srcSchemaKey + "IMP" }
 
         expect: "Deleting the schema"
-        assert jira.deleteInsightSchema(sampleSchemaMap.id as int) : "Error deleting schema"
-        assert ! jira.getInsightSchemas().find { it.id == sampleSchemaMap.id && it.key == sampleSchemaMap.key } : "After schema deletion, API still says the schema exists"
+        assert jira.deleteInsightSchema(sampleSchemaMap.id as int): "Error deleting schema"
+        assert !jira.getInsightSchemas().find { it.id == sampleSchemaMap.id && it.key == sampleSchemaMap.key }: "After schema deletion, API still says the schema exists"
 
 
         cleanup:
@@ -557,7 +575,7 @@ class JiraInstanceManagerRestSpec extends Specification {
     String beanMapGenerator(Map map) {
         String out = ""
 
-        out = "[\n${map.keySet().collect{it + ':""'}.join(",\n")}\n]"
+        out = "[\n${map.keySet().collect { it + ':""' }.join(",\n")}\n]"
 
         return out
 
@@ -567,10 +585,10 @@ class JiraInstanceManagerRestSpec extends Specification {
         String out = ""
 
         oneObject.each { fieldName, value ->
-            if(value instanceof Map) {
+            if (value instanceof Map) {
                 out += value.getClass().simpleName + " " + fieldName + " = " + beanMapGenerator(value) + "\n"
-               // out += value.getClass().simpleName + " " + fieldName + " " + beanGenerator(value) + "\n"
-            }else {
+                // out += value.getClass().simpleName + " " + fieldName + " " + beanGenerator(value) + "\n"
+            } else {
                 out += value.getClass().simpleName + " " + fieldName + "\n"
             }
 
@@ -578,7 +596,6 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         return out
     }
-
 
 
     def "Test JQL"() {
@@ -598,7 +615,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         then:
         issues.size() > 40
-        issues.every {it instanceof IssueBean}
+        issues.every { it instanceof IssueBean }
         log.info("\tJQL was tested successfully")
 
 
