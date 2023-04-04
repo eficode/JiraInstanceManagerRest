@@ -2,8 +2,11 @@ package com.eficode.atlassian.jiraInstanceManager
 
 import com.eficode.atlassian.jiraInstanceManager.beans.AssetAutomationBean
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
+import com.eficode.atlassian.jiraInstanceManager.beans.JiraApp
+import com.eficode.atlassian.jiraInstanceManager.beans.MarketplaceApp
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
+import com.eficode.atlassian.jiraInstanceManager.beans.SpockResult
 import groovy.ant.AntBuilder
 import groovy.io.FileType
 import groovy.json.JsonSlurper
@@ -527,7 +530,84 @@ final class JiraInstanceManagerRest {
 
     }
 
+
+    /** --- Marketplace --- **/
+
+
+    /**
+     * Search marketplace for Apps
+     * @param text Text to match
+     * @param hosting What type of hosting to look for, MarketplaceApp.Hosting.Any is default
+     * @return List of matching apps
+     */
+    ArrayList<MarketplaceApp> searchMarketplace(String text, MarketplaceApp.Hosting hosting = MarketplaceApp.Hosting.Any) {
+
+        UnirestInstance mrktUnirest = Unirest.spawnInstance()
+        mrktUnirest.config().defaultBaseUrl("https://marketplace.atlassian.com")
+
+        HttpResponse response = mrktUnirest.get("/rest/2/addons").queryString([hosting: hosting.name().toLowerCase(), text: text, withVersion: true]).asObject(Map)
+        ArrayList<Map> appsRaw = response.body?.get("_embedded")?.get("addons")
+
+        String nextPageUrl = response?.body?.get("_links")?.get("next")?.find { it.type == "application/json" }?.href
+
+        while (nextPageUrl) {
+            response = mrktUnirest.get(nextPageUrl).asObject(Map)
+            appsRaw += response.body?.get("_embedded")?.get("addons")
+            nextPageUrl = response?.body?.get("_links")?.get("next")?.find { it.type == "application/json" }?.href as String
+        }
+        mrktUnirest.shutDown()
+
+        ArrayList<MarketplaceApp> marketplaceApps = appsRaw.collect { MarketplaceApp.fromMap(it) }
+        return marketplaceApps
+
+    }
+
+
+
     /** --- App management --- **/
+
+
+    /**
+     * Get list of installed apps
+     * @return
+     */
+    ArrayList<JiraApp> getInstalledApps() {
+
+        Cookies sudoCookies = acquireWebSudoCookies()
+        HttpResponse pluginsResponse = unirest.get("/rest/plugins/1.0/").cookie(sudoCookies).asObject(new GenericType<Map>() {
+        })
+
+
+        ArrayList<JiraApp> apps = pluginsResponse.body.plugins.collect { JiraApp.fromMap(it as Map) }
+
+        return apps
+
+    }
+
+    /**
+     * Uninstall an app
+     * @param app JiraApp, retrieved with getInstalledApps
+     * @return
+     */
+    boolean uninstallApp(JiraApp app) {
+
+        assert app?.links?.delete: app.name + " does not have a delete link, unsure how to delete"
+        Cookies sudoCookies = acquireWebSudoCookies()
+
+        HttpResponse deleteResponse = unirest.delete(app.links.delete).asEmpty()
+
+        return deleteResponse.status == 204
+
+    }
+
+
+    boolean installApp(MarketplaceApp marketplaceApp, MarketplaceApp.Hosting hosting = MarketplaceApp.Hosting.Datacenter,  String version = "latest", String license = null) {
+
+        MarketplaceApp.Version versionToInstall = marketplaceApp.getVersion(version, hosting)
+
+        return installApp(versionToInstall.getDownloadUrl(), license)
+
+    }
 
     /**
      * Install an App from Marketplace
@@ -599,21 +679,15 @@ final class JiraInstanceManagerRest {
 
     }
 
+
     boolean scriptRunnerIsInstalled() {
         log.info("Checking if ScriptRunner is installed and enabled")
-        Cookies sudoCookies = acquireWebSudoCookies()
 
-        HttpResponse pluginsResponse = unirest.get("/rest/plugins/1.0/com.onresolve.jira.groovy.groovyrunner-key/summary").cookie(sudoCookies).asJson()
-
-        if (pluginsResponse.status == 404) {
-            return false
-        }
-
-        Map scriptrunnerMap = pluginsResponse.body.getObject().toMap()
-
-        if (scriptrunnerMap != null && scriptrunnerMap.enabled) {
+        if (installedApps.find { it.key == "com.onresolve.jira.groovy.groovyrunner" }?.enabled) {
+            log.info("\tScriptRunner is installed")
             return true
         } else {
+            log.info("\tScriptRunner is not installed")
             return false
         }
 
@@ -1010,7 +1084,7 @@ final class JiraInstanceManagerRest {
 
         HttpResponse<Map> rawResponse = unirest.post("/rest/api/2/issue").cookie(acquireWebSudoCookies()).contentType("application/json").body(requestBody).asObject(Map)
 
-        return jql("key = \"${rawResponse.body.get("key")}\"").find {true}
+        return jql("key = \"${rawResponse.body.get("key")}\"").find { true }
     }
 
 
@@ -1058,8 +1132,53 @@ final class JiraInstanceManagerRest {
 
     /** --- Scriptrunner Actions --- **/
 
+
     /**
-     * Uses ScriptRunners feature "Test Runner" to execute JUnit and SPOCK tests
+     * Uses ScriptRunners (versions from V7) feature "Test Runner" to execute JUnit and SPOCK tests
+     * This functionality in SR is HIGHLY unstable and can easily crash the entire JIRA instance
+     *
+     * This functionality is also quite picky with file names and locations
+     *  <li>Files should be placed in $JIRAHOME/scripts/</li>
+     *  <li>The filename must match class name </li>
+     *  <li>The package must match the directory structure </li>
+     *
+     * @param packageToRun Corresponds to the "package" of the class to run
+     * @param classToRun (Optional) Name of class in package to run
+     * @param methodToRun (Optional) Name of method in class to run
+     *
+     * @return A SpockResult representing the test events
+     */
+    SpockResult runSpockTest(String packageToRun, String classToRun = "", String methodToRun = "") {
+
+        if (methodToRun) {
+            assert classToRun != "": "classToRun must be supplied when methodToRun is supplied"
+        }
+
+        String testToRun = packageToRun + (classToRun ? ".$classToRun" : "") + (methodToRun ? "#$methodToRun" : "")
+
+        HttpResponse<Map> spockResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.common.admin.RunUnitTests")
+                .body(
+                        [
+                                "FIELD_TEST"         : [testToRun],
+                                "FIELD_SCAN_PACKAGES": packageToRun,
+                                "canned-script"      : "com.onresolve.scriptrunner.canned.common.admin.RunUnitTests"
+                        ]
+                )
+                .contentType("application/json")
+                .cookie(acquireWebSudoCookies())
+                .socketTimeout(60000 * 8)
+                .asObject(Map)
+
+        assert spockResponse.status == 200: "Got unexpected HTTP Status when running Spock test"
+        Map rawResponse = spockResponse.body
+        SpockResult spockResult = SpockResult.fromString(rawResponse.json as String)
+
+        return spockResult
+
+    }
+
+    /**
+     * Uses ScriptRunners (versions prior to V7) feature "Test Runner" to execute JUnit and SPOCK tests
      * This functionality in SR is HIGHLY unstable and can easily crash the entire JIRA instance
      *
      * This functionality is also quite picky with file names and locations
@@ -1073,8 +1192,8 @@ final class JiraInstanceManagerRest {
      *
      * @return A map containing the raw result from SR
      */
-
-    LazyMap runSpockTest(String packageToRun, String classToRun = "", String methodToRun = "") {
+    @Deprecated
+    LazyMap runSpockTestV6(String packageToRun, String classToRun = "", String methodToRun = "") {
 
 
         String testToRun = packageToRun

@@ -1,54 +1,72 @@
 package com.eficode.atlassian.jiraInstanceManager.beans
 
-
-
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
-import com.fasterxml.jackson.annotation.JsonProperty;
-import com.fasterxml.jackson.annotation.JsonPropertyOrder;
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class SpockEvent {
 
     @JsonProperty("@class")
-    private String _class;
+    public EventType eventType;
     @JsonProperty("testIdentifier")
-    private TestIdentifier testIdentifier;
+    public TestIdentifier testIdentifier;
     @JsonProperty("testExecutionResult")
-    private TestExecutionResult testExecutionResult;
+    public TestExecutionResult testExecutionResult;
     @JsonIgnore
-    private Map<String, Object> additionalProperties = new LinkedHashMap<String, Object>();
+    public Map<String, Object> additionalProperties = new LinkedHashMap<String, Object>();
 
-    @JsonProperty("@class")
-    public String getClass_() {
-        return _class;
+    String getDisplayName() {
+
+        return testIdentifier?.displayName
+
     }
 
-    @JsonProperty("@class")
-    public void setClass_(String _class) {
-        this._class = _class;
+    String getMethodName() {
+        return testIdentifier?.source?.methodName
     }
 
-    @JsonProperty("testIdentifier")
-    public TestIdentifier getTestIdentifier() {
-        return testIdentifier;
+    String toString() {
+
+        String out = methodName + ":" + testExecutionResult?.status ?: "null"
+
+        if (testExecutionResult?.throwable?.stackTrace) {
+            ArrayList<Map>stackTraces = testExecutionResult?.throwable?.stackTrace as ArrayList<Map>
+            out += "\n\t" + testExecutionResult.throwable.message.replace("\n", "") + "\n"
+
+            //at com.eficode.atlassian.jiraInstanceManager.JiraInstanceManagerRestSpec.Test runSpockTest(JiraInstanceManagerRestSpec.groovy:230)
+
+            stackTraces.each {
+                out += "\t"*2 + "at ${it.className}.${it.methodName}(" + it.fileName + ":" + it.lineNumber + ")"
+             }
+        }
+
+        return out
     }
 
-    @JsonProperty("testIdentifier")
-    public void setTestIdentifier(TestIdentifier testIdentifier) {
-        this.testIdentifier = testIdentifier;
+    boolean isSuccessful() {
+        return testExecutionResult == null || testExecutionResult.status == TestExecutionResult.Status.SUCCESSFUL
     }
 
-    @JsonProperty("testExecutionResult")
-    public TestExecutionResult getTestExecutionResult() {
-        return testExecutionResult;
-    }
+    public enum EventType {
 
-    @JsonProperty("testExecutionResult")
-    public void setTestExecutionResult(TestExecutionResult testExecutionResult) {
-        this.testExecutionResult = testExecutionResult;
+        @JsonProperty("com.onresolve.scriptrunner.testrunner.event.RecordedExecutionStartedEvent")
+        RecordedExecutionStartedEvent("RecordedExecutionStartedEvent", "com.onresolve.scriptrunner.testrunner.event.RecordedExecutionStartedEvent"),
+        @JsonProperty("com.onresolve.scriptrunner.testrunner.event.RecordedExecutionFinishedEvent")
+        RecordedExecutionFinishedEvent("RecordedExecutionFinishedEvent", "com.onresolve.scriptrunner.testrunner.event.RecordedExecutionFinishedEvent")
+
+        public String eventName
+        public String eventClass
+
+
+        EventType(final String eventName, final String eventClass) {
+            this.eventName = eventName
+            this.eventClass = eventClass
+
+        }
     }
 
     @JsonAnyGetter
@@ -60,5 +78,6 @@ public class SpockEvent {
     public void setAdditionalProperty(String name, Object value) {
         this.additionalProperties.put(name, value);
     }
+
 
 }

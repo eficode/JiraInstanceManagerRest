@@ -15,40 +15,45 @@ import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 @JsonInclude(JsonInclude.Include.NON_NULL)
 public class TestExecutionResult {
 
+
+    /**
+     * Status of executing a single test or container.
+     */
+    public enum Status {
+
+        /**
+         * Indicates that the execution of a test or container was
+         * <em>successful</em>.
+         */
+        SUCCESSFUL,
+
+        /**
+         * Indicates that the execution of a test or container was
+         * <em>aborted</em> (started but not finished).
+         */
+        ABORTED,
+
+        /**
+         * Indicates that the execution of a test or container <em>failed</em>.
+         */
+        FAILED;
+
+    }
+
     @JsonProperty("status")
-    private String status;
+    public Status status;
     @JsonProperty("throwable")
-    private Object throwable;
+    public Map throwable;
     @JsonIgnore
-    private Map<String, Object> additionalProperties = new LinkedHashMap<String, Object>();
-
-    @JsonProperty("status")
-    public String getStatus() {
-        return status;
-    }
-
-    @JsonProperty("status")
-    public void setStatus(String status) {
-        this.status = status;
-    }
-
-    @JsonProperty("throwable")
-    public Object getThrowable() {
-        return throwable;
-    }
-
-    @JsonProperty("throwable")
-    public void setThrowable(Object throwable) {
-        this.throwable = throwable;
-    }
+    public Map<String, Object> additionalProperties = new LinkedHashMap<String, Object>();
 
     @JsonAnyGetter
-    public Map<String, Object> getAdditionalProperties() {
+    Map<String, Object> getAdditionalProperties() {
         return this.additionalProperties;
     }
 
     @JsonAnySetter
-    public void setAdditionalProperty(String name, Object value) {
+    void setAdditionalProperty(String name, Object value) {
         this.additionalProperties.put(name, value);
     }
 

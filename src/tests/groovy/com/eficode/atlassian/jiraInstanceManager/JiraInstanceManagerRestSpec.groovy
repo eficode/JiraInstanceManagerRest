@@ -1,8 +1,11 @@
 package com.eficode.atlassian.jiraInstanceManager
 
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
+import com.eficode.atlassian.jiraInstanceManager.beans.JiraApp
+import com.eficode.atlassian.jiraInstanceManager.beans.MarketplaceApp
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
+import com.eficode.atlassian.jiraInstanceManager.beans.SpockResult
 import com.eficode.devstack.deployment.impl.JsmH2Deployment
 import de.gesellix.docker.remote.api.ContainerState
 import groovy.io.FileType
@@ -71,7 +74,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         jsmDep.setJiraLicense(jsmLicense)
 
-        if (!(reuseContainer && jsmDep?.jsmContainer?.status() == ContainerState.Status.Running)){
+        if (!(reuseContainer && jsmDep?.jsmContainer?.status() == ContainerState.Status.Running)) {
             jsmDep.appsToInstall = ["https://marketplace.atlassian.com/download/apps/6820/version/1006780": srLicense]
             //Stop and remove if already existing
             jsmDep.stopAndRemoveDeployment()
@@ -108,6 +111,61 @@ class JiraInstanceManagerRestSpec extends Specification {
         expect:
         jira1.unirest.config().getDefaultBaseUrl() != jira2.unirest.config().getDefaultBaseUrl()
         jira1.baseUrl != jira2.baseUrl
+
+
+    }
+
+    def "Test App Crud"() {
+
+        setup:
+        JiraInstanceManagerRest jira = getJiraInstanceManagerRest()
+
+        String testAppKey = "com.atlassian.labs.rest-api-browser"
+        String testAppName = "Atlassian REST API Browser"
+        MarketplaceApp.Hosting testAppHostingType = MarketplaceApp.Hosting.Server
+
+        jira.installedApps.findAll {it.key == testAppKey}.each {
+            assert jira.uninstallApp(it) : "Error uninstalling app in preparation for test:" + testAppKey
+        }
+
+        when:"Searching for the app"
+        log.info("Searching marketplace for app with name $testAppName and matching key:" + testAppKey)
+        ArrayList<MarketplaceApp> matchingApps = jira.searchMarketplace(testAppName, testAppHostingType)
+        MarketplaceApp marketplaceApp = matchingApps.find {it.key == testAppKey}
+
+        then: "The app should be found"
+        assert marketplaceApp && marketplaceApp.key == testAppKey : "Error finding test App in marketplace"
+        log.info("\tFound matching app in marketplace")
+
+        when:"Installing the app with default parameters"
+        log.info("Installing app using returned marketplace metadata, with default values")
+        assert jira.installApp(marketplaceApp, testAppHostingType) : "Error installing marketplace app"
+        JiraApp jiraApp = jira.installedApps.find {it.key == testAppKey}
+        log.info("\t" + jiraApp?.toString() + " was installed")
+
+        then: "The installation should be successful and the app should now be listed as installed"
+        jiraApp
+        jiraApp.version == marketplaceApp.getLatestVersion().name
+        assert jira.installedApps.find {it.key == testAppKey && it.version == marketplaceApp.embedded.version.name} != null : "App was not found in list of installed apps"
+        log.info("\tInstallation was successful")
+
+        when: "Uninstalling the app"
+        log.info("Uninstalling the app again")
+        assert jira.uninstallApp(jiraApp) : "Error uninstalling app"
+
+        then: "It should no longer be listed as installed"
+        assert jira.installedApps.find {it.key == testAppKey} == null : "App was still found in list of installed apps"
+        log.info("\tSuccessfully uninstalled app")
+
+        when: "Installing an older version of the app"
+        MarketplaceApp.Version oldVersion = marketplaceApp.getVersions(10, testAppHostingType)[1]
+        log.info("Installing old version of App:" + oldVersion.toString())
+        assert jira.installApp(marketplaceApp, testAppHostingType,oldVersion.name) : "Error installing marketplace app with old version:" + oldVersion.name
+
+        then:
+        assert jira.installedApps.find {it.key == testAppKey && it.version == oldVersion.name} != null : "App was not found in list of installed apps, after installing old version"
+        log.info("\tSuccessfully installed old version of app")
+
 
 
     }
@@ -155,10 +213,8 @@ class JiraInstanceManagerRestSpec extends Specification {
 
 
     def "Test runSpockTest"() {
-
-
         setup:
-        log.info("Testing RunSpockTest")
+        log.info("Testing RunSpockTestV7+")
         JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
         File jiraLocalScriptsDir = new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts")
         assert jiraLocalScriptsDir.isDirectory()
@@ -181,14 +237,95 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"): "Error updating main spock package file"
 
         log.info("\tRunning matching package, class and method tests")
-        LazyMap spockPackageOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
-        LazyMap spockClassOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest")
-        LazyMap spockMethodOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
+        SpockResult spockPackageOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
+        SpockResult spockClassOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest")
+        SpockResult spockMethodOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
+
+
+        then: "They should all return successful tests"
+        spockMethodOut.successfulTests.displayName.join() == "A successful test in JiraLocalSpockTest"
+        spockClassOut.successfulTests.displayName.join() == "A successful test in JiraLocalSpockTest"
+        spockPackageOut.successfulTests.displayName.join() == "A successful test in JiraLocalSpockTest"
+
+        spockMethodOut.successful
+        spockPackageOut.successful
+        spockClassOut.successful
+        log.info("\tSuccessfully tested running the main package test")
+
+        when: "When adding a Spock test to a sub package"
+        log.info("Uploading sup package test class")
+        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"): "Error updating sub package file"
+        sleep(2000) //SR needs sometime to pick up the diff
+
+        log.info("\tRunning the same package, class and method tests")
+        spockPackageOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
+        spockClassOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest")
+        spockMethodOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
+
+
+        then: "The new test should be run when running a package test, but not when running the old class and method tests"
+        assert spockPackageOut.successfulTests.displayName == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"]: "The spock package run did not run both the expected tests"
+        spockMethodOut.successfulTests.displayName.join() == "A successful test in JiraLocalSpockTest"
+        spockClassOut.successfulTests.displayName.join() == "A successful test in JiraLocalSpockTest"
+        log.info("\tThe new sub package test class was only run by the package test")
+
+
+        when: "Adding a failing test to the main package"
+        log.info("Uploading failing test class")
+        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
+        sleep(2000) //SR needs sometime to pick up the diff
+
+        log.info("\tRunning the same package, class and method tests")
+        spockPackageOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
+        spockClassOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest")
+        spockMethodOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
+
+
+        then: "Two successful tests and one failed should be returned from the package test run"
+        assert spockPackageOut.successfulTests.displayName == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"]: "The spock package run did not run both the expected successful tests"
+        assert spockPackageOut.failedTests.displayName == ["A failed test in JiraLocalSpockTest"]: "The spock package run did not return the failed methods"
+        assert spockMethodOut.successfulTests.displayName.join() == "A successful test in JiraLocalSpockTest"
+        assert spockClassOut.successfulTests.displayName.join() == "A successful test in JiraLocalSpockTest"
+        log.info("\tSuccessfully detected failing test")
+
+
+    }
+
+    def "Test runSpockTestV6"() {
+
+
+        setup:
+        log.info("Testing RunSpockTestV6")
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
+        File jiraLocalScriptsDir = new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts")
+        assert jiraLocalScriptsDir.isDirectory()
+        File jiraLocalScriptRootDir = new File("src/tests/groovy")
+        assert jiraLocalScriptRootDir.isDirectory()
+
+
+        log.info("\tUsing test files found in local dir:" + jiraLocalScriptsDir.name)
+
+        //Cleanup already uploaded test scripts to get to a known state
+        jiraLocalScriptsDir.eachFileRecurse(FileType.FILES) { scriptFile ->
+            String scriptRelativePath = jiraLocalScriptRootDir.relativePath(scriptFile)
+            log.debug("\tClearing test file on JIRA server: " + scriptRelativePath)
+
+            assert jira.updateScriptrunnerFile("", scriptRelativePath): "Error clearing script file on remote JIRA server:" + scriptRelativePath
+        }
+
+        when: "When running the main test as packageToRun, classToRun and methodToRun"
+        log.info("Uploading main package test class")
+        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"): "Error updating main spock package file"
+
+        log.info("\tRunning matching package, class and method tests")
+        LazyMap spockPackageOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
+        LazyMap spockClassOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest")
+        LazyMap spockMethodOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
 
         then: "They should all succeed and return the same data"
         //Checking SRs old and new way of reporting
-        spockPackageOut?.passedMethods == ["A successful test in JiraLocalSpockTest"] || spockPackageOut.events.find {it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent")}.testIdentifier.displayName  == "A successful test in JiraLocalSpockTest"
-        spockPackageOut?.failedMethods == [:] || spockPackageOut.events.findAll { it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent") }.testExecutionResult.status.every{it == "SUCCESSFUL"}
+        spockPackageOut?.passedMethods == ["A successful test in JiraLocalSpockTest"] || spockPackageOut.events.find { it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent") }.testIdentifier.displayName == "A successful test in JiraLocalSpockTest"
+        spockPackageOut?.failedMethods == [:] || spockPackageOut.events.findAll { it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent") }.testExecutionResult.status.every { it == "SUCCESSFUL" }
         spockPackageOut?.ignoredMethods == [] || spockPackageOut?.ignoredMethods == null
         spockClassOut == spockMethodOut && spockClassOut == spockClassOut
         log.info("\tSuccessfully tested running the main package test")
@@ -198,20 +335,18 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"): "Error updating sub package file"
 
         log.info("\tRunning the same package, class and method tests")
-        spockPackageOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
-        spockClassOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest")
-        spockMethodOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
-
-        def test = spockPackageOut.events.findAll {it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent")}.testIdentifier.displayName
+        spockPackageOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
+        spockClassOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest")
+        spockMethodOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
 
         then: "The new test should be run when running a package test, but not when running the old class and method tests"
 
-        assert spockPackageOut?.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"] || spockPackageOut.events.findAll {it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent")}.testIdentifier.displayName.contains("A successful test in JiraLocalSpockTest") ==  ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"]: "The spock package run did not run both the expected tests"
+        assert spockPackageOut?.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"] || spockPackageOut.events.findAll { it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent") }.testIdentifier.displayName.contains("A successful test in JiraLocalSpockTest") == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"]: "The spock package run did not run both the expected tests"
         assert spockPackageOut?.failedMethods == [:]: "The spock package run returned failed methods"
         assert spockPackageOut.ignoredMethods == []: "The spock package run returned ignored methods"
         assert spockPackageOut != spockClassOut: "The spock class run not be the same as the package run"
         assert spockClassOut == spockMethodOut: "The spock class and method run should be the same"
-        log.info("\tThe new sup package test class was only run by the package test")
+        log.info("\tThe new sub package test class was only run by the package test")
 
 
         when: "Adding a failing test to the main package"
@@ -219,9 +354,9 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
 
         log.info("\tRunning the same package, class and method tests")
-        spockPackageOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
-        spockClassOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest")
-        spockMethodOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
+        spockPackageOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
+        spockClassOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest")
+        spockMethodOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
 
 
         then: "Two successful tests and one failed should be returned"
