@@ -16,12 +16,12 @@ class JiraLocalFailedSpockTest extends Specification {
 
         setup:
 
-        log.info("Running spock test:" + this.specificationContext.currentIteration.name)
+        log.warn("Running spock test:" + this.specificationContext.currentIteration.name)
         expect:
         false
 
         cleanup:
-        log.info("\tTest finished with exception:" + $spock_feature_throwable)
+        log.warn("\tTest finished with exception:" + $spock_feature_throwable)
 
     }
 
