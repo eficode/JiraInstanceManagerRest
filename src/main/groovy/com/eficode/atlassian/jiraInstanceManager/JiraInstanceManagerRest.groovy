@@ -7,6 +7,7 @@ import com.eficode.atlassian.jiraInstanceManager.beans.MarketplaceApp
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
 import com.eficode.atlassian.jiraInstanceManager.beans.SpockResult
+import com.eficode.atlassian.jiraInstanceManager.beans.SrJob
 import groovy.ant.AntBuilder
 import groovy.io.FileType
 import groovy.json.JsonSlurper
@@ -540,25 +541,9 @@ final class JiraInstanceManagerRest {
      * @param hosting What type of hosting to look for, MarketplaceApp.Hosting.Any is default
      * @return List of matching apps
      */
-    ArrayList<MarketplaceApp> searchMarketplace(String text, MarketplaceApp.Hosting hosting = MarketplaceApp.Hosting.Any) {
+    static ArrayList<MarketplaceApp> searchMarketplace(String text, MarketplaceApp.Hosting hosting = MarketplaceApp.Hosting.Any) {
 
-        UnirestInstance mrktUnirest = Unirest.spawnInstance()
-        mrktUnirest.config().defaultBaseUrl("https://marketplace.atlassian.com")
-
-        HttpResponse response = mrktUnirest.get("/rest/2/addons").queryString([hosting: hosting.name().toLowerCase(), text: text, withVersion: true]).asObject(Map)
-        ArrayList<Map> appsRaw = response.body?.get("_embedded")?.get("addons")
-
-        String nextPageUrl = response?.body?.get("_links")?.get("next")?.find { it.type == "application/json" }?.href
-
-        while (nextPageUrl) {
-            response = mrktUnirest.get(nextPageUrl).asObject(Map)
-            appsRaw += response.body?.get("_embedded")?.get("addons")
-            nextPageUrl = response?.body?.get("_links")?.get("next")?.find { it.type == "application/json" }?.href as String
-        }
-        mrktUnirest.shutDown()
-
-        ArrayList<MarketplaceApp> marketplaceApps = appsRaw.collect { MarketplaceApp.fromMap(it) }
-        return marketplaceApps
+        return MarketplaceApp.searchMarketplace(text, hosting)
 
     }
 
@@ -1134,7 +1119,7 @@ final class JiraInstanceManagerRest {
 
 
     /**
-     * Uses ScriptRunners (versions from V7) feature "Test Runner" to execute JUnit and SPOCK tests
+     * Uses ScriptRunners (versions from V6.55.0) feature "Test Runner" to execute JUnit and SPOCK tests
      * This functionality in SR is HIGHLY unstable and can easily crash the entire JIRA instance
      *
      * This functionality is also quite picky with file names and locations
@@ -1178,7 +1163,7 @@ final class JiraInstanceManagerRest {
     }
 
     /**
-     * Uses ScriptRunners (versions prior to V7) feature "Test Runner" to execute JUnit and SPOCK tests
+     * Uses ScriptRunners (versions prior to V6.55.0) feature "Test Runner" to execute JUnit and SPOCK tests
      * This functionality in SR is HIGHLY unstable and can easily crash the entire JIRA instance
      *
      * This functionality is also quite picky with file names and locations
@@ -1511,6 +1496,39 @@ final class JiraInstanceManagerRest {
         log.info("\t\t${response.status}")
 
         return response.status == 200
+    }
+
+
+    /**
+     * Create a ScriptRunner job
+     * @param jobNote Note of the job. Duplicates are allowed
+     * @param userKey The JIRAUSER key of the user who should run the script
+     * @param cron The cron schedule for the job
+     * @param scriptPath The path to the script file to run, relative to the $JIRAHOME/script/ directory
+     * @return a SrJob representing the job
+     */
+    SrJob createSrJob(String jobNote, String userKey, String cron, String scriptPath) {
+        return SrJob.createJob(this, jobNote, userKey, cron, scriptPath)
+    }
+
+
+    /**
+     * Get ScriptRunner jobs
+     * @return
+     */
+    ArrayList<SrJob> getSrJobs() {
+
+        return SrJob.getJobs(this)
+    }
+
+
+    /**
+     * Delete a ScriptRunner job
+     * @param jobId Id of the job to delete
+     * @return true on success
+     */
+    boolean deleteSrJob(String jobId) {
+        return SrJob.deleteJob(this, jobId)
     }
 
 

@@ -52,6 +52,12 @@ class JiraApp {
         return name + " ($version)"
     }
 
+    MarketplaceApp getMarketplaceApp() {
+
+        return MarketplaceApp.searchMarketplace(name, MarketplaceApp.Hosting.Any).find {it.key == key}
+
+    }
+
     static JiraApp fromMap(Map srcMap) {
         objectMapper.convertValue(srcMap, JiraApp.class)
     }

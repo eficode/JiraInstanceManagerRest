@@ -6,6 +6,7 @@ import com.eficode.atlassian.jiraInstanceManager.beans.MarketplaceApp
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
 import com.eficode.atlassian.jiraInstanceManager.beans.SpockResult
+import com.eficode.atlassian.jiraInstanceManager.beans.SrJob
 import com.eficode.devstack.deployment.impl.JsmH2Deployment
 import de.gesellix.docker.remote.api.ContainerState
 import groovy.io.FileType
@@ -19,25 +20,6 @@ import org.slf4j.LoggerFactory
 import spock.lang.Shared
 import spock.lang.Specification
 
-/**
- * Presumes that the JIRA instance at baseUrl
- *      has been setup and has no important data
- *      has Scriptrunner installed and licensed
- *
- *  Example script using devStack: https://github.com/eficode/devStack
- *
- *
- *
- import com.eficode.devstack.deployment.impl.JsmH2Deployment
- JsmH2Deployment jsmD = new JsmH2Deployment(jiraUrl)
- jsmD.setupSecureDockerConnection(dockerHost, dockerCertPath)
- jsmD.setJiraLicense(new File(projectRoot.path + "/resources/jira/licenses/jsm.license").text)
- jsmD.appsToInstall = [
- "https://marketplace.atlassian.com/download/apps/6820/version/1006580"  : new File(projectRoot.path + "/resources/jira/licenses/scriptrunnerForJira.license").text
- ]
- jsmD.removeDeployment()
- jsmD.setupDeployment()
- */
 
 class JiraInstanceManagerRestSpec extends Specification {
 
@@ -46,6 +28,9 @@ class JiraInstanceManagerRestSpec extends Specification {
 
     @Shared
     static String baseUrl = "http://jira.localhost:8080"
+
+    @Shared
+    static String baseSrVersion = "latest"
 
     @Shared
     static JsmH2Deployment jsmDep = new JsmH2Deployment(baseUrl)
@@ -75,12 +60,13 @@ class JiraInstanceManagerRestSpec extends Specification {
         jsmDep.setJiraLicense(jsmLicense)
 
         if (!(reuseContainer && jsmDep?.jsmContainer?.status() == ContainerState.Status.Running)) {
-            jsmDep.appsToInstall = ["https://marketplace.atlassian.com/download/apps/6820/version/1006780": srLicense]
+
             //Stop and remove if already existing
             jsmDep.stopAndRemoveDeployment()
 
             //Start and wait for the deployment
             jsmDep.setupDeployment()
+            installSr(baseSrVersion)
         }
 
         sudoCookies = new JiraInstanceManagerRest(restAdmin, restPw, baseUrl).acquireWebSudoCookies()
@@ -89,6 +75,44 @@ class JiraInstanceManagerRestSpec extends Specification {
 
     JiraInstanceManagerRest getJiraInstanceManagerRest() {
         return new JiraInstanceManagerRest(restAdmin, restPw, baseUrl)
+    }
+
+    JiraApp getSrJiraApp() {
+        getJiraInstanceManagerRest().getInstalledApps().find { it.key == "com.onresolve.jira.groovy.groovyrunner" }
+    }
+
+    MarketplaceApp getSrMarketplaceApp() {
+        return JiraInstanceManagerRest.searchMarketplace("Adaptavist ScriptRunner for JIRA", MarketplaceApp.Hosting.Datacenter).find { it.key == "com.onresolve.jira.groovy.groovyrunner" }
+    }
+
+    JiraApp installSr(String versionNr = "latest") {
+
+        log.info("Installing SR version:" + versionNr)
+        JiraInstanceManagerRest jim = getJiraInstanceManagerRest()
+        JiraApp srJiraApp = getSrJiraApp()
+        MarketplaceApp srMarketApp = getSrMarketplaceApp()
+        assert srMarketApp: "Error finding SR in marketplace"
+        MarketplaceApp.Version versionToInstall = srMarketApp?.getVersion(versionNr, MarketplaceApp.Hosting.Datacenter)
+        assert versionToInstall: "Error finding SR version $versionNr in marketplace"
+        versionNr != "latest" ?: log.info("\tDetermined latest version to be:" + versionToInstall.name)
+
+
+        if (srJiraApp && srJiraApp.version == versionToInstall.name) {
+            log.info("\tThe correct SR version is already installed")
+            return srJiraApp
+        } else if (srJiraApp) {
+            log.info("\tSR is already installed, but has the incorrect version: " + srJiraApp.version + ", ${versionToInstall.name} is requested")
+            log.debug("\t" * 2 + "Uninstalling version:" + srJiraApp.version)
+            assert jim.uninstallApp(srJiraApp): "Error uninstalling:" + srJiraApp
+        }
+
+
+        assert jim.installApp(srMarketApp, MarketplaceApp.Hosting.Datacenter, versionNr, srLicense): "Error installing SR version $versionNr"
+
+        srJiraApp = getSrJiraApp()
+        assert srJiraApp.version == versionNr || (versionNr == "latest" && srJiraApp.version == srMarketApp.getVersion("latest", MarketplaceApp.Hosting.Datacenter).name)
+
+        return srJiraApp
     }
 
     def "Test scriptRunnerIsInstalled"() {
@@ -124,49 +148,50 @@ class JiraInstanceManagerRestSpec extends Specification {
         String testAppName = "Atlassian REST API Browser"
         MarketplaceApp.Hosting testAppHostingType = MarketplaceApp.Hosting.Server
 
-        jira.installedApps.findAll {it.key == testAppKey}.each {
-            assert jira.uninstallApp(it) : "Error uninstalling app in preparation for test:" + testAppKey
+        jira.installedApps.findAll { it.key == testAppKey }.each {
+            assert jira.uninstallApp(it): "Error uninstalling app in preparation for test:" + testAppKey
         }
 
-        when:"Searching for the app"
+        when: "Searching for the app"
         log.info("Searching marketplace for app with name $testAppName and matching key:" + testAppKey)
         ArrayList<MarketplaceApp> matchingApps = jira.searchMarketplace(testAppName, testAppHostingType)
-        MarketplaceApp marketplaceApp = matchingApps.find {it.key == testAppKey}
+        MarketplaceApp marketplaceApp = matchingApps.find { it.key == testAppKey }
 
         then: "The app should be found"
-        assert marketplaceApp && marketplaceApp.key == testAppKey : "Error finding test App in marketplace"
+        assert marketplaceApp && marketplaceApp.key == testAppKey: "Error finding test App in marketplace"
         log.info("\tFound matching app in marketplace")
 
-        when:"Installing the app with default parameters"
+        when: "Installing the app with default parameters"
         log.info("Installing app using returned marketplace metadata, with default values")
-        assert jira.installApp(marketplaceApp, testAppHostingType) : "Error installing marketplace app"
-        JiraApp jiraApp = jira.installedApps.find {it.key == testAppKey}
+        assert jira.installApp(marketplaceApp, testAppHostingType): "Error installing marketplace app"
+        JiraApp jiraApp = jira.installedApps.find { it.key == testAppKey }
         log.info("\t" + jiraApp?.toString() + " was installed")
 
         then: "The installation should be successful and the app should now be listed as installed"
         jiraApp
         jiraApp.version == marketplaceApp.getLatestVersion().name
-        assert jira.installedApps.find {it.key == testAppKey && it.version == marketplaceApp.embedded.version.name} != null : "App was not found in list of installed apps"
+        assert jira.installedApps.find { it.key == testAppKey && it.version == marketplaceApp.embedded.version.name } != null: "App was not found in list of installed apps"
         log.info("\tInstallation was successful")
 
         when: "Uninstalling the app"
         log.info("Uninstalling the app again")
-        assert jira.uninstallApp(jiraApp) : "Error uninstalling app"
+        assert jira.uninstallApp(jiraApp): "Error uninstalling app"
 
         then: "It should no longer be listed as installed"
-        assert jira.installedApps.find {it.key == testAppKey} == null : "App was still found in list of installed apps"
+        assert jira.installedApps.find { it.key == testAppKey } == null: "App was still found in list of installed apps"
         log.info("\tSuccessfully uninstalled app")
 
         when: "Installing an older version of the app"
         MarketplaceApp.Version oldVersion = marketplaceApp.getVersions(10, testAppHostingType)[1]
         log.info("Installing old version of App:" + oldVersion.toString())
-        assert jira.installApp(marketplaceApp, testAppHostingType,oldVersion.name) : "Error installing marketplace app with old version:" + oldVersion.name
+        assert jira.installApp(marketplaceApp, testAppHostingType, oldVersion.name): "Error installing marketplace app with old version:" + oldVersion.name
 
         then:
-        assert jira.installedApps.find {it.key == testAppKey && it.version == oldVersion.name} != null : "App was not found in list of installed apps, after installing old version"
+        assert jira.installedApps.find { it.key == testAppKey && it.version == oldVersion.name } != null: "App was not found in list of installed apps, after installing old version"
         log.info("\tSuccessfully installed old version of app")
 
-
+        expect: "Check minor features"
+        assert marketplaceApp.getVersion(oldVersion.name, testAppHostingType)?.name == oldVersion.name: "Error retrieving specific version of marketplace app"
 
     }
 
@@ -211,15 +236,80 @@ class JiraInstanceManagerRestSpec extends Specification {
 
     }
 
+    def "Test SR Job Crud"(String srVersionNumber, boolean last) {
 
-    def "Test runSpockTest"() {
         setup:
-        log.info("Testing RunSpockTestV7+")
+        log.info("Testing CRUD of SR jobs")
+        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
+        String jobFile = "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/srJob.groovy"
+        String jobNote = "SPOC Job"
+        String jobCron = "0 0 22 ? * SAT"
+        String userKey = "JIRAUSER10000"
+
+        assert jira.updateScriptrunnerFile("log.warn(\"test\")", jobFile) : "Error creating SR Job File"
+
+        assert installSr(srVersionNumber): "Error installing SR version:" + srVersionNumber
+        log.info("\tUsing SR version:" + srVersionNumber)
+        sleep(1500)//Wait for sr to detect file changes
+
+
+        when:"Creating SR job"
+        log.info("\tCreating SR Job")
+        log.info("\t"*2 + "Job Note:" + jobNote)
+        log.info("\t"*2 + "File:" + jobFile)
+        log.info("\t"*2 + "Cron:" + jobCron)
+
+        SrJob srJob = jira.createSrJob(jobNote, userKey, jobCron, jobFile)
+        log.info("\tCreated job:" + srJob?.id)
+
+        then:"Job should be created and listable"
+        srJob
+        jira.getSrJobs().find {it.id == srJob.id  && it.fieldJobCode.scriptPath == jobFile && it.fieldInterval == jobCron}
+        log.info("\t"*2 + "Job was successfully created and is returned when requested")
+
+        when: "Deleting the job"
+        log.info("\tDeleting SR Job:" + srJob.id)
+        assert jira.deleteSrJob(srJob.id): "Error deleting job"
+
+        then:
+        assert jira.getSrJobs().find {it.id == srJob.id} == null : "Job could still be found after deletion"
+
+
+        cleanup:
+        if (last) {
+            installSr(baseSrVersion)
+        }
+
+
+        where:
+        srVersionNumber | last
+        "latest"        | false
+        "7.13.0"        | false
+        "7.10.0"        | false
+        "7.8.0"         | false
+        "7.6.0"         | false
+        "7.4.0"         | false
+        "7.2.0"         | false
+        "7.0.0"         | false
+        "6.58.1"        | false
+        "6.56.0"        | false
+        "6.55.0"        | true
+
+
+    }
+
+    def "Test runSpockTest"(String srVersionNumber, boolean last) {
+        setup:
+        log.info("Testing RunSpockTestV7")
         JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
         File jiraLocalScriptsDir = new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts")
         assert jiraLocalScriptsDir.isDirectory()
         File jiraLocalScriptRootDir = new File("src/tests/groovy")
         assert jiraLocalScriptRootDir.isDirectory()
+
+
+        assert installSr(srVersionNumber): "Error installing SR version:" + srVersionNumber
+        log.info("\tUsing SR version:" + srVersionNumber)
 
 
         log.info("\tUsing test files found in local dir:" + jiraLocalScriptsDir.name)
@@ -235,7 +325,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         when: "When running the main test as packageToRun, classToRun and methodToRun"
         log.info("Uploading main package test class")
         assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"): "Error updating main spock package file"
-
+        sleep(1500)//Wait for sr to detect file changes
         log.info("\tRunning matching package, class and method tests")
         SpockResult spockPackageOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
         SpockResult spockClassOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest")
@@ -288,10 +378,29 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert spockClassOut.successfulTests.displayName.join() == "A successful test in JiraLocalSpockTest"
         log.info("\tSuccessfully detected failing test")
 
+        cleanup:
+        if (last) {
+            installSr(baseSrVersion)
+        }
+
+
+        where:
+        srVersionNumber | last
+        "latest"        | false
+        "7.13.0"        | false
+        "7.10.0"        | false
+        "7.8.0"         | false
+        "7.6.0"         | false
+        "7.4.0"         | false
+        "7.2.0"         | false
+        "7.0.0"         | false
+        "6.58.1"        | false
+        "6.56.0"        | false
+        "6.55.0"        | true
 
     }
 
-    def "Test runSpockTestV6"() {
+    def "Test runSpockTestV6"(String srVersionNumber, boolean last) {
 
 
         setup:
@@ -302,6 +411,8 @@ class JiraInstanceManagerRestSpec extends Specification {
         File jiraLocalScriptRootDir = new File("src/tests/groovy")
         assert jiraLocalScriptRootDir.isDirectory()
 
+        assert installSr(srVersionNumber): "Error installing SR version:" + srVersionNumber
+        log.info("\tUsing SR version:" + srVersionNumber)
 
         log.info("\tUsing test files found in local dir:" + jiraLocalScriptsDir.name)
 
@@ -316,6 +427,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         when: "When running the main test as packageToRun, classToRun and methodToRun"
         log.info("Uploading main package test class")
         assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"): "Error updating main spock package file"
+        sleep(1500)//Wait for SR to detect file changes
 
         log.info("\tRunning matching package, class and method tests")
         LazyMap spockPackageOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
@@ -323,16 +435,16 @@ class JiraInstanceManagerRestSpec extends Specification {
         LazyMap spockMethodOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
 
         then: "They should all succeed and return the same data"
-        //Checking SRs old and new way of reporting
-        spockPackageOut?.passedMethods == ["A successful test in JiraLocalSpockTest"] || spockPackageOut.events.find { it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent") }.testIdentifier.displayName == "A successful test in JiraLocalSpockTest"
-        spockPackageOut?.failedMethods == [:] || spockPackageOut.events.findAll { it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent") }.testExecutionResult.status.every { it == "SUCCESSFUL" }
-        spockPackageOut?.ignoredMethods == [] || spockPackageOut?.ignoredMethods == null
+        spockPackageOut.passedMethods == ["A successful test in JiraLocalSpockTest"]
+        spockPackageOut.failedMethods == [:]
+        spockPackageOut.ignoredMethods == []
         spockClassOut == spockMethodOut && spockClassOut == spockClassOut
         log.info("\tSuccessfully tested running the main package test")
 
         when: "When adding a Spock test to a sub package"
         log.info("Uploading sup package test class")
         assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"): "Error updating sub package file"
+        sleep(1500)//Wait for SR to detect file changes
 
         log.info("\tRunning the same package, class and method tests")
         spockPackageOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
@@ -340,9 +452,8 @@ class JiraInstanceManagerRestSpec extends Specification {
         spockMethodOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
 
         then: "The new test should be run when running a package test, but not when running the old class and method tests"
-
-        assert spockPackageOut?.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"] || spockPackageOut.events.findAll { it.getAt("@class").toString().endsWith("RecordedExecutionFinishedEvent") }.testIdentifier.displayName.contains("A successful test in JiraLocalSpockTest") == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"]: "The spock package run did not run both the expected tests"
-        assert spockPackageOut?.failedMethods == [:]: "The spock package run returned failed methods"
+        assert spockPackageOut.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"] : "The spock package run did not run both the expected tests"
+        assert spockPackageOut.failedMethods == [:] : "The spock package run returned failed methods"
         assert spockPackageOut.ignoredMethods == []: "The spock package run returned ignored methods"
         assert spockPackageOut != spockClassOut: "The spock class run not be the same as the package run"
         assert spockClassOut == spockMethodOut: "The spock class and method run should be the same"
@@ -352,6 +463,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         when: "Adding a failing test to the main package"
         log.info("Uploading failing test class")
         assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
+        sleep(1500)//Wait for SR to detect file changes
 
         log.info("\tRunning the same package, class and method tests")
         spockPackageOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
@@ -367,6 +479,18 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert spockClassOut == spockMethodOut: "The spock class and method run should be the same"
 
 
+        cleanup:
+        if (last) {
+            installSr(baseSrVersion)
+        }
+
+
+        where:
+        srVersionNumber | last
+        "6.54.0"        | false
+        "6.50.0"        | false
+        "6.40.0"        | false
+        "6.30.0"        | true
     }
 
 

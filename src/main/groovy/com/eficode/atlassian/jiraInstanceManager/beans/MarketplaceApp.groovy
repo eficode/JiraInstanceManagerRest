@@ -47,6 +47,29 @@ class MarketplaceApp {
         return name + " (${embedded.version})"
     }
 
+    static ArrayList<MarketplaceApp> searchMarketplace(String text, Hosting hosting = Hosting.Any) {
+
+        UnirestInstance mrktUnirest = Unirest.spawnInstance()
+        mrktUnirest.config().defaultBaseUrl("https://marketplace.atlassian.com")
+
+        HttpResponse response = mrktUnirest.get("/rest/2/addons").queryString([hosting: hosting.name().toLowerCase(), text: text, withVersion: true]).asObject(Map)
+        ArrayList<Map> appsRaw = response.body?.get("_embedded")?.get("addons")
+
+        String nextPageUrl = response?.body?.get("_links")?.get("next")?.find { it.type == "application/json" }?.href
+
+        while (nextPageUrl) {
+            response = mrktUnirest.get(nextPageUrl).asObject(Map)
+            appsRaw += response.body?.get("_embedded")?.get("addons")
+            nextPageUrl = response?.body?.get("_links")?.get("next")?.find { it.type == "application/json" }?.href as String
+        }
+        mrktUnirest.shutDown()
+
+        ArrayList<MarketplaceApp> marketplaceApps = appsRaw.collect { MarketplaceApp.fromMap(it) }
+        return marketplaceApps
+
+    }
+
+
 
     Version getLatestVersion(Hosting hosting = Hosting.Any) {
 
@@ -57,6 +80,12 @@ class MarketplaceApp {
         return version
     }
 
+    /**
+     * Get a specific version of Marketplace app
+     * @param versionName ex latest, 3.0, etc
+     * @param hosting
+     * @return
+     */
     Version getVersion(String versionName, Hosting hosting = Hosting.Any) {
 
         if (versionName == "latest") {
