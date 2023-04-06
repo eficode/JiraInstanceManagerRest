@@ -1657,14 +1657,10 @@ final class JiraInstanceManagerRest {
         }
 
         installScript += """
-            @Grab(group='$group', module='$module', version='$version')
+            @Grab(group='$group', module='$module', version='$version' ${classifier ? ", classifier = '$classifier'" : ""})
             
             import java.util.ArrayList //Something must be imported or script will fail
         """
-
-        if (classifier) {
-            installScript = installScript.replaceFirst(/\)/, ", classifier = '$classifier' )")
-        }
 
         log.trace("Installing Grape dependencies with script:")
         installScript.eachLine { log.trace("\t" + it) }
