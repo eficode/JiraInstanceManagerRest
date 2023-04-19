@@ -211,6 +211,83 @@ class JiraInstanceManagerRestSpec extends Specification {
 
     }
 
+
+    Map<File, ArrayList<File>> createSampleGroovyFiles() {
+
+        File rootDir = File.createTempDir()
+        ArrayList<File> files = []
+
+
+        [
+                "com/spoc/subSubFile.groovy" : "log.info(\"com/spoc/subSubFile.groovy\")",
+                "rootFile.groovy" : "log.info(\"rootFile.groovy\")",
+                "com/subFile.groovy" : "log.info(\"com/subFile.groovy\")",
+        ].each {path, content ->
+
+            String fileRelPath = path.contains("/") ? path.substring(0, path.lastIndexOf("/")) : ""
+
+            if (fileRelPath) {
+                new File(rootDir, fileRelPath).mkdirs()
+            }
+
+            File newFile = new File(rootDir,path)
+            assert newFile.createNewFile() : "Error creating file:" + path
+            newFile.text = content
+            files += newFile
+        }
+
+
+        return [(rootDir) : files]
+    }
+
+    def "Test updateScriptrunnerFiles with recursive files"() {
+
+        setup:
+        JiraInstanceManagerRest jim = jiraInstanceManagerRest
+
+
+        Map<File, ArrayList<File>> sampleFilesMap = createSampleGroovyFiles()
+        File localSampleRoot = sampleFilesMap.keySet().first()
+        ArrayList<File>localSampleFiles = sampleFilesMap.values().first()
+        Map<String, String> uploadParameters = [:]
+
+        localSampleFiles.each {
+            jim.deleteScriptrunnerFile(localSampleRoot.relativePath(it))
+
+        }
+
+        when: "Using a map with recursive files"
+
+        assert jim.updateScriptrunnerFiles([(localSampleRoot.canonicalPath) : "/"]) : "Error updating ScriptRunner files"
+
+        then: "SR should have the same directory structure"
+        localSampleFiles.each {
+            assert jim.getScriptrunnerFile(localSampleRoot.relativePath(it)) : "Failed to receive uploaded file:" + localSampleRoot.relativePath(it)
+
+        }
+
+        when: "Deleting the files"
+        localSampleFiles.each {
+            assert jim.deleteScriptrunnerFile(localSampleRoot.relativePath(it)) : "Failed to receive uploaded file:" + localSampleRoot.relativePath(it)
+
+        }
+        then: "SR should no longer return them"
+        localSampleFiles.each {
+            assert !jim.getScriptrunnerFile(localSampleRoot.relativePath(it)) : "Failed to receive uploaded file:" + localSampleRoot.relativePath(it)
+
+        }
+
+
+
+
+        cleanup:
+
+        assert localSampleRoot.deleteDir() : "Error cleaning up sample groovy files:" + localSampleRoot.canonicalPath
+
+
+
+    }
+
     def "Test Installation of Grapes"() {
 
         setup:
