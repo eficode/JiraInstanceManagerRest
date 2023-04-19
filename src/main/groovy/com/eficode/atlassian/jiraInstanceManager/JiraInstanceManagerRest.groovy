@@ -13,6 +13,7 @@ import groovy.io.FileType
 import groovy.json.JsonSlurper
 import kong.unirest.Cookie
 import kong.unirest.Cookies
+import kong.unirest.Empty
 import kong.unirest.GenericType
 import kong.unirest.GetRequest
 import kong.unirest.HttpResponse
@@ -548,7 +549,6 @@ final class JiraInstanceManagerRest {
     }
 
 
-
     /** --- App management --- **/
 
 
@@ -586,7 +586,7 @@ final class JiraInstanceManagerRest {
     }
 
 
-    boolean installApp(MarketplaceApp marketplaceApp, MarketplaceApp.Hosting hosting = MarketplaceApp.Hosting.Datacenter,  String version = "latest", String license = null) {
+    boolean installApp(MarketplaceApp marketplaceApp, MarketplaceApp.Hosting hosting = MarketplaceApp.Hosting.Datacenter, String version = "latest", String license = null) {
 
         MarketplaceApp.Version versionToInstall = marketplaceApp.getVersion(version, hosting)
 
@@ -1256,16 +1256,28 @@ final class JiraInstanceManagerRest {
 
 
     /**
-     * Uploads a new, or updates an existing script file on the JIRA server
-     * Files are normally placed in $JIRAHOME/scripts/...
-     * @param scriptContent the text content of the script file
-     * @param filePath The sub path (including file name) of the script root, where the file should be placed.  No leading "/"
+     * Delete a scriptrunner file
+     * @param filePath the path, relative to scriptrunner root
      * @return true on success
      */
+    boolean deleteScriptrunnerFile(String filePath) {
 
-    boolean updateScriptrunnerFile(String scriptContent, String filePath) {
 
-        String scriptB64 = scriptContent.bytes.encodeBase64().toString()
+        Cookies sudoCookies = acquireWebSudoCookies()
+
+        HttpResponse<Empty> response = unirest.delete("/rest/scriptrunner/latest/resource-directories/directory").cookie(sudoCookies).queryString("rootPath", srRoot).queryString("resourcePath", filePath).asEmpty()
+
+        return response.status == 200
+
+    }
+
+
+    /**
+     * Get the ScriptRunner script root
+     * @return
+     */
+    String getSrRoot() {
+
 
         Cookies sudoCookies = acquireWebSudoCookies()
 
@@ -1277,7 +1289,50 @@ final class JiraInstanceManagerRest {
         LazyMap scriptRootRaw = roots[0] as LazyMap
 
         String scriptRoot = scriptRootRaw.get("info").get("rootPath")
-        HttpResponse response = unirest.put("/rest/scriptrunner/latest/idea/file?filePath=$filePath&rootPath=$scriptRoot").contentType("application/octet-stream").cookie(sudoCookies).body(scriptB64).asEmpty()
+
+        return scriptRoot
+
+    }
+
+
+    /**
+     * Get the contents of a scriptrunner file
+     * @param filePath Path, relative to scriptunner script root
+     * @return
+     */
+    String getScriptrunnerFile(String filePath) {
+
+        Cookies sudoCookies = acquireWebSudoCookies()
+
+        HttpResponse<JsonNode> scriptRootResponse = unirest.get("/rest/scriptrunner/latest/idea/file").queryString("filePath", filePath).queryString("rootPath", srRoot).cookie(sudoCookies).asJson()
+
+
+        String rawScriptContent = scriptRootResponse.body.object.has("content") ? scriptRootResponse.body.object.get("content") : ""
+
+        String scriptContent = new String(rawScriptContent.decodeBase64())
+
+        return scriptContent
+
+
+    }
+
+    /**
+     * Uploads a new, or updates an existing script file on the JIRA server
+     * Files are normally placed in $JIRAHOME/scripts/...
+     * @param scriptContent the text content of the script file
+     * @param filePath The sub path (including file name) of the script root, where the file should be placed.  No leading "/"
+     * @return true on success
+     */
+
+    boolean updateScriptrunnerFile(String scriptContent, String filePath) {
+
+
+        Cookies sudoCookies = acquireWebSudoCookies()
+
+        String scriptB64 = scriptContent.bytes.encodeBase64().toString()
+
+
+        HttpResponse response = unirest.put("/rest/scriptrunner/latest/idea/file").queryString("filePath", filePath.startsWith("/") ? filePath.substring(1) : filePath).queryString("rootPath", srRoot).contentType("application/octet-stream").cookie(sudoCookies).body(scriptB64).asEmpty()
 
         return response.status == 204
 
@@ -1314,11 +1369,35 @@ final class JiraInstanceManagerRest {
 
             File srcFile = new File(srcFilePath)
 
+
             if (srcFile.directory) {
+
+                ArrayList<File> directoryFiles = []
+
+                //Get direct files
                 srcFile.eachFileMatch(~/.*.groovy/) { subFile ->
-                    log.info("\tUpdating:" + subFile.name + ", Destination: " + (destFilePath + subFile.name))
-                    assert updateScriptrunnerFile(subFile.text, (destFilePath + subFile.name)), "Error updating " + subFile.name
+                    directoryFiles += subFile
                 }
+
+                //Get recursive files
+                srcFile.eachDirRecurse { dir ->
+                    dir.eachFileMatch(~/.*.groovy/) { file ->
+                        directoryFiles += file
+                    }
+                }
+
+
+                directoryFiles.each { subFile ->
+
+                    String destinationPath = destFilePath + srcFile.relativePath(subFile)
+
+                    destinationPath = destinationPath.startsWith("/") ? destinationPath.substring(1) : destinationPath
+
+                    log.info("\tUpdating:" + subFile.name + ", Destination: " +  destinationPath)
+                    assert updateScriptrunnerFile(subFile.text, destinationPath), "Error updating " + subFile.name
+
+                }
+
 
             } else {
                 log.info("\tUpdating:" + srcFile.name)
@@ -1375,23 +1454,26 @@ final class JiraInstanceManagerRest {
      */
     void clearCodeCaches(ArrayList<String> rediscoverApps = []) {
 
+
         Cookies sudoCookies = acquireWebSudoCookies()
 
-        HttpResponse groovyCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.JiraClearCaches")
+
+        //Handle newer Script-runner versions
+        HttpResponse groovyCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.common.admin.ClearCache")
                 .cookie(sudoCookies)
-                .body(["FIELD_WHICH_CACHE": "gcl"])
                 .contentType("application/json")
                 .asJson()
+        assert groovyCacheResponse.body.object.toMap().output == "Groovy cache cleared."
 
 
-        if (groovyCacheResponse.status == 500) {
-            //Handle newer Script-runner versions
-            groovyCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.common.admin.ClearCache")
+        //Handle older Script-runner versions
+        if (groovyCacheResponse.status >= 300) {
+            groovyCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.JiraClearCaches")
                     .cookie(sudoCookies)
+                    .body(["FIELD_WHICH_CACHE": "gcl"])
                     .contentType("application/json")
                     .asJson()
-            assert groovyCacheResponse.body.object.toMap().output == "Groovy cache cleared."
-        } else {
+
             assert groovyCacheResponse.body.object.toMap().output == "Groovy cache cleared."
 
             HttpResponse javaCacheResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.JiraClearCaches")
