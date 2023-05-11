@@ -57,7 +57,9 @@ public class SpockEvent {
         RecordedExecutionStartedEvent("RecordedExecutionStartedEvent", "com.onresolve.scriptrunner.testrunner.event.RecordedExecutionStartedEvent"),
         @JsonProperty("com.onresolve.scriptrunner.testrunner.event.RecordedExecutionFinishedEvent")
         RecordedExecutionFinishedEvent("RecordedExecutionFinishedEvent", "com.onresolve.scriptrunner.testrunner.event.RecordedExecutionFinishedEvent")
-
+        @JsonProperty("com.onresolve.scriptrunner.testrunner.event.RecordedDynamicTestRegisteredEvent")
+        RecordedDynamicTestRegisteredEvent("RecordedDynamicTestRegisteredEvent", "com.onresolve.scriptrunner.testrunner.event.RecordedDynamicTestRegisteredEvent")
+        
         public String eventName
         public String eventClass
 
