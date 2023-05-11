@@ -4,11 +4,8 @@
   <artifactId>jirainstancemanager</artifactId>
   <versioning>
     <versions>
-      <version>1.3.6.2-SNAPSHOT</version>
-      <version>1.4.0-SNAPSHOT</version>
-      <version>1.4.1-SNAPSHOT</version>
-      <version>1.5.0-SNAPSHOT</version>
+      <version>1.5.1-SNAPSHOT</version>
     </versions>
-    <lastUpdated>20230419150959</lastUpdated>
+    <lastUpdated>20230511141254</lastUpdated>
   </versioning>
 </metadata>
