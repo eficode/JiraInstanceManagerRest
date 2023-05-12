@@ -66,7 +66,7 @@ public class SpockEvent {
         @JsonProperty("com.onresolve.scriptrunner.testrunner.event.TestExecutionEventsRecorder")
         TestExecutionEventsRecorder("TestExecutionEventsRecorder", "com.onresolve.scriptrunner.testrunner.event.TestExecutionEventsRecorder"),
         @JsonProperty("com.onresolve.scriptrunner.testrunner.event.TestExecutionEventsRecording")
-        TestExecutionEventsRecording("TestExecutionEventsRecording", "com.onresolve.scriptrunner.testrunner.event.TestExecutionEventsRecording"),
+        TestExecutionEventsRecording("TestExecutionEventsRecording", "com.onresolve.scriptrunner.testrunner.event.TestExecutionEventsRecording")
 
         
         public String eventName
