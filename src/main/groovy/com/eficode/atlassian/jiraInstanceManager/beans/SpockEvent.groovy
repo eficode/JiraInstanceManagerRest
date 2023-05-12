@@ -52,13 +52,22 @@ public class SpockEvent {
     }
 
     public enum EventType {
-
+      
         @JsonProperty("com.onresolve.scriptrunner.testrunner.event.RecordedExecutionStartedEvent")
         RecordedExecutionStartedEvent("RecordedExecutionStartedEvent", "com.onresolve.scriptrunner.testrunner.event.RecordedExecutionStartedEvent"),
         @JsonProperty("com.onresolve.scriptrunner.testrunner.event.RecordedExecutionFinishedEvent")
         RecordedExecutionFinishedEvent("RecordedExecutionFinishedEvent", "com.onresolve.scriptrunner.testrunner.event.RecordedExecutionFinishedEvent"),
         @JsonProperty("com.onresolve.scriptrunner.testrunner.event.RecordedDynamicTestRegisteredEvent")
-        RecordedDynamicTestRegisteredEvent("RecordedDynamicTestRegisteredEvent", "com.onresolve.scriptrunner.testrunner.event.RecordedDynamicTestRegisteredEvent")
+        RecordedDynamicTestRegisteredEvent("RecordedDynamicTestRegisteredEvent", "com.onresolve.scriptrunner.testrunner.event.RecordedDynamicTestRegisteredEvent"),
+        @JsonProperty("com.onresolve.scriptrunner.testrunner.event.RecordedExecutionSkippedEvent")
+        RecordedExecutionSkippedEvent("RecordedExecutionSkippedEvent", "com.onresolve.scriptrunner.testrunner.event.RecordedExecutionSkippedEvent"),
+        @JsonProperty("com.onresolve.scriptrunner.testrunner.event.RecordedTestExecutionEvent")
+        RecordedTestExecutionEvent("RecordedTestExecutionEvent", "com.onresolve.scriptrunner.testrunner.event.RecordedTestExecutionEvent"),
+        @JsonProperty("com.onresolve.scriptrunner.testrunner.event.TestExecutionEventsRecorder")
+        TestExecutionEventsRecorder("TestExecutionEventsRecorder", "com.onresolve.scriptrunner.testrunner.event.TestExecutionEventsRecorder"),
+        @JsonProperty("com.onresolve.scriptrunner.testrunner.event.TestExecutionEventsRecording")
+        TestExecutionEventsRecording("TestExecutionEventsRecording", "com.onresolve.scriptrunner.testrunner.event.TestExecutionEventsRecording"),
+
         
         public String eventName
         public String eventClass
