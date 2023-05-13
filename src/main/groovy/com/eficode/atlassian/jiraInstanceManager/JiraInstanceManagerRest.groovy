@@ -29,6 +29,7 @@ import unirest.shaded.com.google.gson.JsonObject
 import unirest.shaded.org.apache.http.NoHttpResponseException
 import unirest.shaded.org.apache.http.conn.ConnectTimeoutException
 import unirest.shaded.org.apache.http.conn.HttpHostConnectException
+import com.atlassian.jira.component.ComponentAccessor
 
 import java.nio.file.StandardCopyOption
 
@@ -477,9 +478,9 @@ final class JiraInstanceManagerRest {
 
     }
 
-    AssetAutomationBean createInsightAutomation(String name, String actorUserKey, String eventName, String eventTypeId, String eventIql = null, String eventCron = null, String conditionIql, String actionName, String actionTypeId, String actionData, String schemaId) {
-
-
+    AssetAutomationBean createInsightAutomation(String name, String userName, String eventName, String eventTypeId, String eventIql = null, String eventCron = null, String conditionIql, String actionName, String actionTypeId, String actionData, String schemaId) {
+        
+        String actorUserKey = ComponentAccessor.getUserManager().getUserByName(userName).getKey()
         LazyMap postBody = [
                 id                  : null,
                 name                : name,
