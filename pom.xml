@@ -6,7 +6,7 @@
 
     <groupId>com.eficode.atlassian</groupId>
     <artifactId>jirainstancemanager</artifactId>
-    <version>1.5.1-SNAPSHOT</version>
+    <version>1.5.2-SNAPSHOT</version>
     <description>A groovy library for interacting with Jira REST API.</description>
 
     <profiles>
