@@ -1815,11 +1815,11 @@ final class JiraInstanceManagerRest {
     
     String getUserKey(String userName){
         Cookies cookies = acquireWebSudoCookies()
-        HttpResponse response = unirest.get("/rest/api/2/user?username=$userName")
-                                                            .cookie(cookies)
-                                                            .header("Content-Type", "application/json")
-                                                            .queryString(["username":userName])
-                                                            .asJson()
+        HttpResponse response = unirest.get("/rest/api/2/user")
+                                        .cookie(cookies)
+                                        .header("Content-Type", "application/json")
+                                        .queryString(["username":userName])
+                                        .asJson()
         assert response.status == 200: "Error getting userKey"
         return response.body.object.toMap().key
 
