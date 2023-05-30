@@ -1,7 +1,9 @@
 package com.eficode.atlassian.jiraInstanceManager
 
 import com.eficode.atlassian.jiraInstanceManager.beans.AssetAutomationBean
+import com.eficode.atlassian.jiraInstanceManager.beans.FieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
+import com.eficode.atlassian.jiraInstanceManager.beans.IssueTypeBean
 import com.eficode.atlassian.jiraInstanceManager.beans.JiraApp
 import com.eficode.atlassian.jiraInstanceManager.beans.MarketplaceApp
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
@@ -43,6 +45,12 @@ final class JiraInstanceManagerRest {
     public boolean useSamlNoSso = false //Not tested
 
 
+    ArrayList<FieldBean.FieldType> cached_FieldTypes = []
+    ArrayList<FieldBean> cached_FieldBeans = []
+    ArrayList<ProjectBean> cached_Projects = []
+    ArrayList<IssueTypeBean> cached_IssueTypes = []
+
+
     /**
      * Setup JiraInstanceManagerRest with admin/admin as credentials.
      * @param BaseUrl ex: http://localhost:8080
@@ -64,6 +72,12 @@ final class JiraInstanceManagerRest {
         adminUsername = username
         adminPassword = password
         unirest.config().defaultBaseUrl(baseUrl).setDefaultBasicAuth(adminUsername, adminPassword)
+
+    }
+
+    void setProxy(String proxyUrl, int proxyPort) {
+
+        unirest.config().proxy(proxyUrl, proxyPort)
 
     }
 
@@ -1006,7 +1020,11 @@ final class JiraInstanceManagerRest {
     }
 
 
-    ArrayList<ProjectBean> getProjects() {
+    ArrayList<ProjectBean> getProjects(boolean useCache = true) {
+
+        if (useCache && cached_Projects) {
+            return cached_Projects
+        }
 
         log.info("Retrieving projects from " + baseUrl)
         ArrayList<ProjectBean> projectBeans = []
@@ -1020,6 +1038,7 @@ final class JiraInstanceManagerRest {
         }
 
 
+        cached_Projects = projectBeans
         return projectBeans
 
     }
@@ -1076,6 +1095,61 @@ final class JiraInstanceManagerRest {
     /** --- Field CRUD --- **/
 
 
+    /**
+     * Create a new JIRA Customfield field
+     * @param name Name of the new field
+     * @param description (Optional) Description of the new field
+     * @param searcherKey The key of the searcher to use, can be found using getFieldTypesInInstance()
+     * @param typeKey The key of the type to use, can be found using getFieldTypesInInstance()
+     * @param projectIds The projects to apply to, set to [] for all
+     * @param issueTypeIds The IDs to apply to, set to [-1] for all
+     * @return a new FieldBean
+     */
+    FieldBean createCustomfield(String name, String searcherKey, String typeKey, String description = "", ArrayList<String> projectIds = [], ArrayList<String> issueTypeIds = ["-1"]) {
+
+
+        return FieldBean.createCustomfield(this, name, searcherKey, typeKey, description, projectIds, issueTypeIds)
+
+    }
+
+
+    /**
+     * Get all fields (System and Custom)
+     * @param useCache If true, will return the same data as last time queried
+     * @return
+     */
+    ArrayList<FieldBean> getFields(boolean useCache = true) {
+
+        if (useCache && cached_FieldBeans) {
+            return cached_FieldBeans
+        }
+
+        cached_FieldBeans = FieldBean.getFields(this)
+
+        return cached_FieldBeans
+
+    }
+
+    /**
+     * Delete a customFiled
+     * @param fieldId ex: customfield_10000
+     * @return true on success
+     */
+    boolean deleteCustomField(String fieldId) {
+        return FieldBean.deleteCustomField(this, fieldId)
+    }
+
+    ArrayList<FieldBean.FieldType> getFieldTypes(boolean useCache = true) {
+
+        if (useCache && cached_FieldTypes) {
+            return cached_FieldTypes
+        }
+
+        cached_FieldTypes = FieldBean.FieldType.getFieldTypes(this)
+        return cached_FieldTypes
+    }
+
+    @Deprecated
     ArrayList<String> getFieldIds(String fieldName) {
 
         ArrayList<Map<String, Object>> allFields = getFieldsRaw()
@@ -1087,6 +1161,7 @@ final class JiraInstanceManagerRest {
 
     }
 
+    @Deprecated
     String getFieldId(String fieldName, String fieldType) {
 
         ArrayList<Map<String, Object>> allFields = getFieldsRaw()
@@ -1104,6 +1179,7 @@ final class JiraInstanceManagerRest {
 
     }
 
+    @Deprecated
     ArrayList<Map<String, Object>> getFieldsRaw() {
 
 
@@ -1114,6 +1190,22 @@ final class JiraInstanceManagerRest {
 
 
     }
+
+    /** --- Issue Type Actions --- **/
+
+
+    ArrayList<IssueTypeBean> getIssueTypes(boolean useCache = true) {
+
+        if (useCache && cached_IssueTypes) {
+            return cached_IssueTypes
+        }
+
+        cached_IssueTypes =  IssueTypeBean.getIssueTypes(this)
+
+        return cached_IssueTypes
+
+    }
+
 
     /** --- Scriptrunner Actions --- **/
 
@@ -1824,6 +1916,7 @@ final class JiraInstanceManagerRest {
         return response.body.object.toMap().key
 
     }
+
 
 
 }

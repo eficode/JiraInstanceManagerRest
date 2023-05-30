@@ -1,7 +1,9 @@
 package com.eficode.atlassian.jiraInstanceManager
 
+import com.eficode.atlassian.jiraInstanceManager.beans.AssetFieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
 import com.eficode.atlassian.jiraInstanceManager.beans.JiraApp
+import com.eficode.atlassian.jiraInstanceManager.beans.FieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.MarketplaceApp
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
@@ -219,10 +221,10 @@ class JiraInstanceManagerRestSpec extends Specification {
 
 
         [
-                "com/spoc/subSubFile.groovy" : "log.info(\"com/spoc/subSubFile.groovy\")",
-                "rootFile.groovy" : "log.info(\"rootFile.groovy\")",
-                "com/subFile.groovy" : "log.info(\"com/subFile.groovy\")",
-        ].each {path, content ->
+                "com/spoc/subSubFile.groovy": "log.info(\"com/spoc/subSubFile.groovy\")",
+                "rootFile.groovy"           : "log.info(\"rootFile.groovy\")",
+                "com/subFile.groovy"        : "log.info(\"com/subFile.groovy\")",
+        ].each { path, content ->
 
             String fileRelPath = path.contains("/") ? path.substring(0, path.lastIndexOf("/")) : ""
 
@@ -230,14 +232,14 @@ class JiraInstanceManagerRestSpec extends Specification {
                 new File(rootDir, fileRelPath).mkdirs()
             }
 
-            File newFile = new File(rootDir,path)
-            assert newFile.createNewFile() : "Error creating file:" + path
+            File newFile = new File(rootDir, path)
+            assert newFile.createNewFile(): "Error creating file:" + path
             newFile.text = content
             files += newFile
         }
 
 
-        return [(rootDir) : files]
+        return [(rootDir): files]
     }
 
     def "Test updateScriptrunnerFiles with recursive files"() {
@@ -248,7 +250,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         Map<File, ArrayList<File>> sampleFilesMap = createSampleGroovyFiles()
         File localSampleRoot = sampleFilesMap.keySet().first()
-        ArrayList<File>localSampleFiles = sampleFilesMap.values().first()
+        ArrayList<File> localSampleFiles = sampleFilesMap.values().first()
         Map<String, String> uploadParameters = [:]
 
         localSampleFiles.each {
@@ -258,32 +260,29 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "Using a map with recursive files"
 
-        assert jim.updateScriptrunnerFiles([(localSampleRoot.canonicalPath) : "/"]) : "Error updating ScriptRunner files"
+        assert jim.updateScriptrunnerFiles([(localSampleRoot.canonicalPath): "/"]): "Error updating ScriptRunner files"
 
         then: "SR should have the same directory structure"
         localSampleFiles.each {
-            assert jim.getScriptrunnerFile(localSampleRoot.relativePath(it)) : "Failed to receive uploaded file:" + localSampleRoot.relativePath(it)
+            assert jim.getScriptrunnerFile(localSampleRoot.relativePath(it)): "Failed to receive uploaded file:" + localSampleRoot.relativePath(it)
 
         }
 
         when: "Deleting the files"
         localSampleFiles.each {
-            assert jim.deleteScriptrunnerFile(localSampleRoot.relativePath(it)) : "Failed to receive uploaded file:" + localSampleRoot.relativePath(it)
+            assert jim.deleteScriptrunnerFile(localSampleRoot.relativePath(it)): "Failed to receive uploaded file:" + localSampleRoot.relativePath(it)
 
         }
         then: "SR should no longer return them"
         localSampleFiles.each {
-            assert !jim.getScriptrunnerFile(localSampleRoot.relativePath(it)) : "Failed to receive uploaded file:" + localSampleRoot.relativePath(it)
+            assert !jim.getScriptrunnerFile(localSampleRoot.relativePath(it)): "Failed to receive uploaded file:" + localSampleRoot.relativePath(it)
 
         }
 
 
-
-
         cleanup:
 
-        assert localSampleRoot.deleteDir() : "Error cleaning up sample groovy files:" + localSampleRoot.canonicalPath
-
+        assert localSampleRoot.deleteDir(): "Error cleaning up sample groovy files:" + localSampleRoot.canonicalPath
 
 
     }
@@ -323,33 +322,33 @@ class JiraInstanceManagerRestSpec extends Specification {
         String jobCron = "0 0 22 ? * SAT"
         String userKey = "JIRAUSER10000"
 
-        assert jira.updateScriptrunnerFile("log.warn(\"test\")", jobFile) : "Error creating SR Job File"
+        assert jira.updateScriptrunnerFile("log.warn(\"test\")", jobFile): "Error creating SR Job File"
 
         assert installSr(srVersionNumber): "Error installing SR version:" + srVersionNumber
         log.info("\tUsing SR version:" + srVersionNumber)
         sleep(1500)//Wait for sr to detect file changes
 
 
-        when:"Creating SR job"
+        when: "Creating SR job"
         log.info("\tCreating SR Job")
-        log.info("\t"*2 + "Job Note:" + jobNote)
-        log.info("\t"*2 + "File:" + jobFile)
-        log.info("\t"*2 + "Cron:" + jobCron)
+        log.info("\t" * 2 + "Job Note:" + jobNote)
+        log.info("\t" * 2 + "File:" + jobFile)
+        log.info("\t" * 2 + "Cron:" + jobCron)
 
         SrJob srJob = jira.createSrJob(jobNote, userKey, jobCron, jobFile)
         log.info("\tCreated job:" + srJob?.id)
 
-        then:"Job should be created and listable"
+        then: "Job should be created and listable"
         srJob
-        jira.getSrJobs().find {it.id == srJob.id  && it.fieldJobCode.scriptPath == jobFile && it.fieldInterval == jobCron}
-        log.info("\t"*2 + "Job was successfully created and is returned when requested")
+        jira.getSrJobs().find { it.id == srJob.id && it.fieldJobCode.scriptPath == jobFile && it.fieldInterval == jobCron }
+        log.info("\t" * 2 + "Job was successfully created and is returned when requested")
 
         when: "Deleting the job"
         log.info("\tDeleting SR Job:" + srJob.id)
         assert jira.deleteSrJob(srJob.id): "Error deleting job"
 
         then:
-        assert jira.getSrJobs().find {it.id == srJob.id} == null : "Job could still be found after deletion"
+        assert jira.getSrJobs().find { it.id == srJob.id } == null: "Job could still be found after deletion"
 
 
         cleanup:
@@ -529,8 +528,8 @@ class JiraInstanceManagerRestSpec extends Specification {
         spockMethodOut = jira.runSpockTestV6("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts", "JiraLocalSpockTest", "A successful test in JiraLocalSpockTest")
 
         then: "The new test should be run when running a package test, but not when running the old class and method tests"
-        assert spockPackageOut.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"] : "The spock package run did not run both the expected tests"
-        assert spockPackageOut.failedMethods == [:] : "The spock package run returned failed methods"
+        assert spockPackageOut.passedMethods == ["A successful test in JiraLocalSpockTest", "A successful test in JiraLocalSubSpockTest"]: "The spock package run did not run both the expected tests"
+        assert spockPackageOut.failedMethods == [:]: "The spock package run returned failed methods"
         assert spockPackageOut.ignoredMethods == []: "The spock package run returned ignored methods"
         assert spockPackageOut != spockClassOut: "The spock class run not be the same as the package run"
         assert spockClassOut == spockMethodOut: "The spock class and method run should be the same"
@@ -789,7 +788,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
         jira.acquireWebSudoCookies()
 
-        String projectName = "Spoc Src Schema"
+        String projectName = "Spoc Src FieldSchema"
         String projectKey = jira.getAvailableProjectKey("SSS")
 
         ArrayList<Integer> preExistingSchemaIds = jira.getInsightSchemas().id
@@ -804,7 +803,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert resultMap.schema
         assert !preExistingSchemaIds.contains(resultMap.schema.id as int)
         assert jira.projects.find { it.projectId == resultMap.project.projectId }: "getProjects() could not find project"
-        log.info("\tSchema and project successfully created")
+        log.info("\tFieldSchema and project successfully created")
 
 
         cleanup:
@@ -822,7 +821,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         JiraInstanceManagerRest jira = getJiraInstanceManagerRest()
         jira.acquireWebSudoCookies()
 
-        String srcSchemaName = "Spoc Src Schema"
+        String srcSchemaName = "Spoc Src FieldSchema"
         String srcSchemaKey = "SSS"
         String srcSchemaTemplate = "hr"
         log.info("\tWill first create a new schema")
@@ -841,7 +840,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
                 ]).asJson().body.object.toMap()
 
-        log.info("\tSchema created with status ${sampleSchemaMap.status} and Id: " + sampleSchemaMap.id)
+        log.info("\tFieldSchema created with status ${sampleSchemaMap.status} and Id: " + sampleSchemaMap.id)
         assert sampleSchemaMap.status == "Ok", "Error creating sample schema"
 
         when: "Exporting the new sample schema"
@@ -910,6 +909,125 @@ class JiraInstanceManagerRestSpec extends Specification {
     }
 
 
+    def "Test Asset Field Crud"() {
+
+        setup: "Instantiate JiraInstanceManager"
+
+        log.info("Will test export and import of insight object schemas")
+
+        JiraInstanceManagerRest jim = getJiraInstanceManagerRest()
+        jim.setProxy("127.0.0.1", 8081)
+
+        if (!jim.projects.find { it.projectName == "Asset Field Crud" }) {
+
+            jim.createJsmProjectWithSampleData("Asset Field Crud", "ASSFCRUD")
+        }
+
+        ArrayList<FieldBean.FieldType> assetFieldTypes = jim.getFieldTypes().findAll {it.key.startsWith("com.riadalabs.jira.plugins.insight")}
+
+        expect:
+
+        assetFieldTypes.each {assetFieldType ->
+
+
+            String fieldPrefix = System.currentTimeMillis().toString()[-5..-1]
+
+
+            FieldBean newField = jim.createCustomfield(fieldPrefix + "-" + assetFieldType.name, assetFieldType.searchers.first(), assetFieldType.key, "Field type: ${assetFieldType.name}")
+
+            assert  newField.class == AssetFieldBean : "createCustomfield() did not return an AssetFieldBean when creating an asset field"
+
+            AssetFieldBean newAssetField = newField as AssetFieldBean
+
+            assert newAssetField.getConfigSchemeIds().size() == 1 : "getConfigSchemeIds() did not return the expected number of schema ids"
+
+            assert newAssetField.deleteCustomField()
+
+        }
+
+
+    }
+
+    def "Test Field Crud"() {
+
+        setup: "Instantiate JiraInstanceManager"
+
+        log.info("Will test export and import of insight object schemas")
+
+        JiraInstanceManagerRest jim = getJiraInstanceManagerRest()
+        //jim.setProxy("127.0.0.1", 8081)
+
+        if (!jim.projects.find { it.projectName == "Field Crud" }) {
+            jim.createJsmProjectWithSampleData("Field Crud", "FIELDCRUD")
+        }
+
+
+        when: "When getting all fields"
+        ArrayList<FieldBean> jiraFieldBeans = FieldBean.getFields(jim)
+
+
+        then: "Custom and system fields should be returned. FieldTypes should be found, JSM CAB field should have been created with global project and issueType scope"
+        jiraFieldBeans.any { it.custom }
+        jiraFieldBeans.any { it.custom == false }
+        jiraFieldBeans.any { it.name == "Key" && it.id == "issuekey" }
+        jiraFieldBeans.size() > 10
+        FieldBean.FieldType.getFieldTypes(jim).size() > 35
+        FieldBean.getFields(jim).id.sort() == jim.getFields().id.sort()
+        assert jiraFieldBeans.find { it.name == "CAB" }.getFieldProjects().projectId == jim.getProjects().projectId: "Expected CAB field to be applied to all projects"
+        assert jiraFieldBeans.find { it.name == "CAB" }.getFieldIssueTypes().id == jim.getIssueTypes().id: "Expected CAB field applied to all issue types"
+
+
+        expect: "Creation of fields with global/specific issueType/project of all fieldTypes and searchers, to work."
+        log.info("Testing creation of fields")
+        jim.getFieldTypes().each { fieldType ->
+            String fieldTypKey = fieldType.key
+            log.info("\tTesting creation of field type:" + fieldTypKey)
+            fieldType.searchers.each { searcherKey ->
+                log.info("\t" * 2 + "Creating using Searcher:" + searcherKey)
+                String fieldPrefix = System.currentTimeMillis().toString()[-5..-1]
+                ArrayList<String> projectIds = jim.getProjects().projectId
+                projectIds.add(null)
+                projectIds.shuffle()
+                projectIds = [projectIds.first()]
+
+                log.info("\t" * 3 + "Adding to project:" + (projectIds == [null] ? " Global (all Projects)" : projectIds.join(",")))
+
+                ArrayList<String> issueTypeIds = jim.getIssueTypes().id
+                issueTypeIds.add("-1")
+                issueTypeIds.shuffle()
+                issueTypeIds = [issueTypeIds.first()]
+                log.info("\t" * 3 + "Adding to IssueType:" + (issueTypeIds == ["-1"] ? " Global (all issueTypes)" : issueTypeIds.join(",")))
+
+
+                FieldBean newField = jim.createCustomfield(fieldPrefix + "-" + fieldType.name, searcherKey, fieldTypKey, "Field type: ${fieldType.name}, Project: $projectIds, IssueType: $issueTypeIds", projectIds, issueTypeIds)
+                log.info("\t" * 3 + "Created field:" + newField.toString())
+
+                if (projectIds == [null]) {
+                    assert newField.getFieldProjects(true).projectId == jim.getProjects().projectId: "Field ${newField.id} was setup as project-global but getFieldProjects(true) did not return all projects"
+
+                } else {
+                    assert projectIds.toString() == newField.getFieldProjects(true).projectId.toString(): "Field ${newField.id} was setup for specific projects ($projectIds) but getFieldProjects(true) did not return the expected projects"
+                }
+
+                if (issueTypeIds == ["-1"]) {
+                    assert newField.getFieldIssueTypes(true).id == jim.getIssueTypes(true).id: "Field ${newField.id} was setup as issueType-global but getIssueTypes(true) did not return all issueTypes"
+                } else {
+                    assert issueTypeIds.toString() == newField.getFieldIssueTypes(true).id.toString(): "Field ${newField.id} was setup for specific issueTypes ($issueTypeIds) but getFieldIssueTypes(true) did not return the expected issueTypes"
+                }
+
+                assert newField.getFieldType(true).key == fieldType.key: "Field ${newField.id} was suposed to be type ${fieldType.key}, but API returned ${newField.getFieldType(true).key}"
+                log.info("\t" * 3 + "Field was successfully created")
+
+                assert newField.deleteCustomField(): "Error deleting customfield " + newField.id
+                log.info("\t" * 3 + "Field was successfully deleted")
+
+            }
+        }
+
+
+    }
+
+
     String beanMapGenerator(Map map) {
         String out = ""
 
@@ -943,6 +1061,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         String projectName = "JQL Test"
         String projectKey = "JQL"
         JiraInstanceManagerRest jira = getJiraInstanceManagerRest()
+
 
         ProjectBean projectBean = jira.createJsmProjectWithSampleData(projectName, projectKey)
 
