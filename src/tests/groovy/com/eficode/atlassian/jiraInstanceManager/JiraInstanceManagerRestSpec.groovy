@@ -955,7 +955,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.info("Will test export and import of insight object schemas")
 
         JiraInstanceManagerRest jim = getJiraInstanceManagerRest()
-        //jim.setProxy("127.0.0.1", 8081)
+        jim.setProxy("127.0.0.1", 8081)
 
         if (!jim.projects.find { it.projectName == "Field Crud" }) {
             jim.createJsmProjectWithSampleData("Field Crud", "FIELDCRUD")
@@ -973,8 +973,8 @@ class JiraInstanceManagerRestSpec extends Specification {
         jiraFieldBeans.size() > 10
         FieldBean.FieldType.getFieldTypes(jim).size() > 35
         FieldBean.getFields(jim).id.sort() == jim.getFields().id.sort()
-        assert jiraFieldBeans.find { it.name == "CAB" }.getFieldProjects().projectId == jim.getProjects().projectId: "Expected CAB field to be applied to all projects"
-        assert jiraFieldBeans.find { it.name == "CAB" }.getFieldIssueTypes().id == jim.getIssueTypes().id: "Expected CAB field applied to all issue types"
+        assert jiraFieldBeans.find { it.name == "CAB" }.getFieldContexts().allProjects == [true]: "Expected CAB field to be applied to all projects"
+        assert jiraFieldBeans.find { it.name == "CAB" }.getFieldContexts().allIssueTypes == [true] : "Expected CAB field applied to all issue types"
 
 
         expect: "Creation of fields with global/specific issueType/project of all fieldTypes and searchers, to work."
@@ -1002,21 +1002,33 @@ class JiraInstanceManagerRestSpec extends Specification {
                 FieldBean newField = jim.createCustomfield(fieldPrefix + "-" + fieldType.name, searcherKey, fieldTypKey, "Field type: ${fieldType.name}, Project: $projectIds, IssueType: $issueTypeIds", projectIds, issueTypeIds)
                 log.info("\t" * 3 + "Created field:" + newField.toString())
 
+                ArrayList<FieldBean.FieldConfigurationContext>fieldConfigContexts = newField.getFieldContexts()
+                assert fieldConfigContexts.size() == 1 : "Expected new field to only have one config context"
+                FieldBean.FieldConfigurationContext fieldConfigContext = fieldConfigContexts.first()
                 if (projectIds == [null]) {
-                    assert newField.getFieldProjects(true).projectId == jim.getProjects().projectId: "Field ${newField.id} was setup as project-global but getFieldProjects(true) did not return all projects"
+
+                    assert fieldConfigContext.allProjects : "Field ${newField.id} was setup as project-global but field config context  was not set to allProjects=true"
+                    assert fieldConfigContext.projects.isEmpty() : "Field ${newField.id} was setup as project-global fieldConfigContext.projects was not empty"
+                    //assert newField.getFieldProjects(true).projectId == jim.getProjects().projectId: "Field ${newField.id} was setup as project-global but getFieldProjects(true) did not return all projects"
 
                 } else {
-                    assert projectIds.toString() == newField.getFieldProjects(true).projectId.toString(): "Field ${newField.id} was setup for specific projects ($projectIds) but getFieldProjects(true) did not return the expected projects"
+                    assert projectIds.toString() == fieldConfigContext.projects.collect {it.projectId}.toString(): "Field ${newField.id} was setup for specific projects ($projectIds) but fieldConfigContext.projects did not return the expected projects"
                 }
+
 
                 if (issueTypeIds == ["-1"]) {
-                    assert newField.getFieldIssueTypes(true).id == jim.getIssueTypes(true).id: "Field ${newField.id} was setup as issueType-global but getIssueTypes(true) did not return all issueTypes"
+                    assert fieldConfigContext.allIssueTypes: "Field ${newField.id} was setup as issueType-global but fieldConfigContext.allIssueTypes was not set to false"
+                    assert fieldConfigContext.issueTypes.isEmpty(): "Field ${newField.id} was setup as issueType-global fieldConfigContext.issueTypes was not empty"
                 } else {
-                    assert issueTypeIds.toString() == newField.getFieldIssueTypes(true).id.toString(): "Field ${newField.id} was setup for specific issueTypes ($issueTypeIds) but getFieldIssueTypes(true) did not return the expected issueTypes"
+                    assert issueTypeIds.toString() == fieldConfigContext.issueTypes.id.flatten().toString(): "Field ${newField.id} was setup for specific issueTypes ($issueTypeIds) butfieldConfigContext.issueTypes did not return the expected issueTypes"
                 }
+
+
 
                 assert newField.getFieldType(true).key == fieldType.key: "Field ${newField.id} was suposed to be type ${fieldType.key}, but API returned ${newField.getFieldType(true).key}"
                 log.info("\t" * 3 + "Field was successfully created")
+
+                ArrayList<FieldBean.FieldConfigurationContext> configContexts = newField.getFieldContexts()
 
                 assert newField.deleteCustomField(): "Error deleting customfield " + newField.id
                 log.info("\t" * 3 + "Field was successfully deleted")

@@ -42,6 +42,74 @@ class FieldBean {
     Map<String, Object> additionalProperties = [:]
 
 
+    static class FieldConfigurationContext {
+
+        @JsonProperty("self")
+        public String self;
+        @JsonProperty("id")
+        public Integer id;
+        @JsonProperty("name")
+        public String name;
+        @JsonProperty("description")
+        public String description;
+        @JsonProperty("field")
+        public FieldBean field;
+        @JsonProperty("allProjects")
+        public Boolean allProjects;
+        @JsonProperty("projects")
+        public List<ProjectBean> projects;
+        @JsonProperty("allIssueTypes")
+        public Boolean allIssueTypes;
+        @JsonProperty("issueTypes")
+        public List<IssueTypeBean> issueTypes;
+        @JsonIgnore()
+        JiraInstanceManagerRest jiraInstance
+        @JsonIgnore
+        private Map<String, Object> additionalProperties = new LinkedHashMap<String, Object>();
+
+        @JsonAnyGetter
+        public Map<String, Object> getAdditionalProperties() {
+            return this.additionalProperties;
+        }
+
+        @JsonAnySetter
+        public void setAdditionalProperty(String name, Object value) {
+            this.additionalProperties.put(name, value);
+        }
+
+
+        static ArrayList<FieldConfigurationContext> getFieldContexts(String fieldId, JiraInstanceManagerRest jim) {
+
+
+            try {
+
+                HttpResponse<ArrayList<Map>> rawResponse = jim.unirest.get("/rest/internal/2/field/$fieldId/context").asObject(new GenericType<ArrayList<Map>>() {})
+
+                assert rawResponse.status == 200 : "Error getting ConfigContext for field:" + fieldId
+
+                ArrayList<FieldConfigurationContext> contexts =  rawResponse.body.collect {FieldConfigurationContext.fromMap(it, jim)}
+
+                return contexts
+            }catch (ex) {
+                log.error("Error getting Config context for field $fieldId:" + ex.message)
+                throw ex
+            }
+
+
+        }
+
+        static FieldConfigurationContext fromMap(Map rawMap, JiraInstanceManagerRest jim) {
+            FieldConfigurationContext configContext = objectMapper.convertValue(rawMap, FieldConfigurationContext.class)
+            configContext.jiraInstance = jim
+            return configContext
+        }
+
+
+
+
+
+    }
+
     static class FieldSchema {
 
         @JsonProperty("type")
@@ -184,12 +252,15 @@ class FieldBean {
     }
 
 
+
+
     /**
      * Get projects that the field has been applied to
      * Returns all project if it´s a globally applied field
      * @param useCache use cached information if set ot true
      * @return
      */
+    /*
     ArrayList<ProjectBean> getFieldProjects(boolean useCache = true) {
 
         if (!custom) {
@@ -224,12 +295,16 @@ class FieldBean {
 
     }
 
+     */
+
+
 
     /**
      * Get issue types that the field has been explicitly applied to
      * @param useCache use cached information if set ot true
      * @return
      */
+    /*
     ArrayList<IssueTypeBean> getFieldIssueTypes(boolean useCache = true) {
 
         if (!custom) {
@@ -264,6 +339,14 @@ class FieldBean {
 
         }
 
+    }
+
+     */
+
+
+    ArrayList<FieldConfigurationContext> getFieldContexts() {
+
+        return FieldConfigurationContext.getFieldContexts(id, jiraInstance)
     }
 
 
