@@ -8,6 +8,7 @@ import com.eficode.atlassian.jiraInstanceManager.beans.JiraApp
 import com.eficode.atlassian.jiraInstanceManager.beans.MarketplaceApp
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
+import com.eficode.atlassian.jiraInstanceManager.beans.ScriptFieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.SpockResult
 import com.eficode.atlassian.jiraInstanceManager.beans.SrJob
 import groovy.ant.AntBuilder
@@ -43,6 +44,7 @@ final class JiraInstanceManagerRest {
     public String adminUsername = "admin"
     public String adminPassword = "admin"
     public boolean useSamlNoSso = false //Not tested
+    private boolean verifySsl = true
 
 
     ArrayList<FieldBean.FieldType> cached_FieldTypes = []
@@ -79,6 +81,11 @@ final class JiraInstanceManagerRest {
 
         unirest.config().proxy(proxyUrl, proxyPort)
 
+    }
+
+    void setVerifySsl(boolean verify) {
+        verifySsl = verify
+        unirest.config().verifySsl(verifySsl)
     }
 
     /** --- REST Backend --- **/
@@ -118,7 +125,7 @@ final class JiraInstanceManagerRest {
         log.info("\tTransforming admin cookies in to user cookies")
 
         UnirestInstance unirestInstance = Unirest.spawnInstance()
-        unirestInstance.config().defaultBaseUrl(baseUrl)
+        unirestInstance.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
         HttpResponse switchUserResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.SwitchUser")
                 .body(["FIELD_USER_ID": userKey, "canned-script": "com.onresolve.scriptrunner.canned.jira.admin.SwitchUser"])
                 .contentType("application/json")
@@ -130,7 +137,7 @@ final class JiraInstanceManagerRest {
         assert switchUserResponse.status == 200, "Error getting cookies for user " + userKey
 
         UnirestInstance verifyInstance = Unirest.spawnInstance()
-        verifyInstance.config().defaultBaseUrl(baseUrl)
+        verifyInstance.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
 
         Map verifyMap = verifyInstance.get("/rest/api/2/myself").cookie(cookies).asJson().getBody().object.toMap()
         verifyInstance.shutDown()
@@ -150,7 +157,11 @@ final class JiraInstanceManagerRest {
         Map cookies = useSamlNoSso ? getCookiesFromRedirect("/secure/admin/WebSudoAuthenticate") : getCookiesFromRedirect("/login.jsp?nosso")
 
         UnirestInstance unirestInstance = Unirest.spawnInstance()
-        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl)
+        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl).verifySsl(verifySsl)
+        if (unirest.config().proxy.host) {
+            unirestInstance.config().proxy(unirest.config().proxy.host, unirest.config().proxy.port)
+        }
+
         HttpResponse webSudoResponse = unirestInstance.post("/secure/admin/WebSudoAuthenticate.jspa")
                 .cookie(cookies.cookies)
                 .field("atl_token", cookies.cookies.find { it.name == "atlassian.xsrf.token" }.value)
@@ -240,13 +251,18 @@ final class JiraInstanceManagerRest {
     Map getCookiesFromRedirect(String path, String username = adminUsername, String password = adminPassword, Map headers = [:]) {
 
         UnirestInstance unirestInstance = Unirest.spawnInstance()
-        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl)
+        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl).verifySsl(verifySsl)
 
         Cookies cookies = new Cookies()
         GetRequest getRequest = unirestInstance.get(path).headers(headers)
         if (username && password) {
             getRequest.basicAuth(username, password)
         }
+        if (unirest.config().proxy.host) {
+            unirestInstance.config().proxy(unirest.config().proxy.host, unirest.config().proxy.port)
+        }
+
+
         HttpResponse getResponse = getRequest.asString()
         cookies = extractCookiesFromResponse(getResponse, cookies)
 
@@ -717,7 +733,7 @@ final class JiraInstanceManagerRest {
         cookies = redirectResponse.cookies
 
         UnirestInstance localUnirest = Unirest.spawnInstance()
-        localUnirest.config().defaultBaseUrl(baseUrl)
+        localUnirest.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
         String setupAppPropertiesUrl = "/secure/SetupApplicationProperties.jspa"
         HttpResponse setAppProperties = localUnirest.post(setupAppPropertiesUrl)
                 .cookie(cookies)
@@ -794,7 +810,7 @@ final class JiraInstanceManagerRest {
         log.info("Setting up a blank H2 database for JIRA")
         long startTime = System.currentTimeMillis()
         UnirestInstance localUnirest = Unirest.spawnInstance()
-        localUnirest.config().defaultBaseUrl(baseUrl)
+        localUnirest.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
         Cookie xsrfCookie = null
 
         while (startTime + (3 * 60000) > System.currentTimeMillis()) {
@@ -919,6 +935,7 @@ final class JiraInstanceManagerRest {
     /**
      * This will create a demo project with mock data using one of the project templates
      * The project will contain issues
+     * Sets $adminUsername as project lead
      * @param name Name of the new project
      * @param projectKey Key of the new project
      * @param template One of the predefined templates:<br>
@@ -969,7 +986,7 @@ final class JiraInstanceManagerRest {
     }
 
     /**
-     *
+     * Sets $adminUsername as project lead
      * @param name
      * @param key
      * @param template <br>
@@ -1200,7 +1217,7 @@ final class JiraInstanceManagerRest {
             return cached_IssueTypes
         }
 
-        cached_IssueTypes =  IssueTypeBean.getIssueTypes(this)
+        cached_IssueTypes = IssueTypeBean.getIssueTypes(this)
 
         return cached_IssueTypes
 
@@ -1485,7 +1502,7 @@ final class JiraInstanceManagerRest {
 
                     destinationPath = destinationPath.startsWith("/") ? destinationPath.substring(1) : destinationPath
 
-                    log.info("\tUpdating:" + subFile.name + ", Destination: " +  destinationPath)
+                    log.info("\tUpdating:" + subFile.name + ", Destination: " + destinationPath)
                     assert updateScriptrunnerFile(subFile.text, destinationPath), "Error updating " + subFile.name
 
                 }
@@ -1759,6 +1776,20 @@ final class JiraInstanceManagerRest {
     }
 
 
+    /** --- ScriptRunner - Script Fields --- **/
+
+
+    /**
+     * Get all ScriptRunner Script Fields, only tested for "Custom Script Field"
+     * @return
+     */
+    ArrayList<ScriptFieldBean> getScriptFields() {
+
+        return ScriptFieldBean.getScriptFields(this)
+
+
+    }
+
     /**
      * WIP
      * @param group
@@ -1904,19 +1935,18 @@ final class JiraInstanceManagerRest {
 
 
     }
-    
-    String getUserKey(String userName){
+
+    String getUserKey(String userName) {
         Cookies cookies = acquireWebSudoCookies()
         HttpResponse response = unirest.get("/rest/api/2/user")
-                                        .cookie(cookies)
-                                        .header("Content-Type", "application/json")
-                                        .queryString(["username":userName])
-                                        .asJson()
+                .cookie(cookies)
+                .header("Content-Type", "application/json")
+                .queryString(["username": userName])
+                .asJson()
         assert response.status == 200: "Error getting userKey"
         return response.body.object.toMap().key
 
     }
-
 
 
 }
