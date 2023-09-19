@@ -5,7 +5,7 @@ import kong.unirest.HttpResponse
 class AssetFieldBean extends FieldBean {
 
 
-    /*
+
     ArrayList<Long> getConfigSchemeIds() {
 
         HttpResponse<Map> rawResponse = jiraInstance.unirest.get("/rest/assets/1.0/customfield/default/configscheme/" + numericId)
@@ -19,7 +19,7 @@ class AssetFieldBean extends FieldBean {
 
     }
 
-     */
+
 
 
 

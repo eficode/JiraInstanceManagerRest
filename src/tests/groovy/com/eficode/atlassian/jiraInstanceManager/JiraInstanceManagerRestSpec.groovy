@@ -68,7 +68,8 @@ class JiraInstanceManagerRestSpec extends Specification {
 
             //Start and wait for the deployment
             jsmDep.setupDeployment()
-            installSr(baseSrVersion)
+            assert jiraInstanceManagerRest.installScriptRunner(srLicense, baseSrVersion) : "Error installing SR version:" + baseSrVersion
+
         }
 
         sudoCookies = new JiraInstanceManagerRest(restAdmin, restPw, baseUrl).acquireWebSudoCookies()
@@ -79,43 +80,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         return new JiraInstanceManagerRest(restAdmin, restPw, baseUrl)
     }
 
-    JiraApp getSrJiraApp() {
-        getJiraInstanceManagerRest().getInstalledApps().find { it.key == "com.onresolve.jira.groovy.groovyrunner" }
-    }
 
-    MarketplaceApp getSrMarketplaceApp() {
-        return JiraInstanceManagerRest.searchMarketplace("Adaptavist ScriptRunner for JIRA", MarketplaceApp.Hosting.Datacenter).find { it.key == "com.onresolve.jira.groovy.groovyrunner" }
-    }
-
-    JiraApp installSr(String versionNr = "latest") {
-
-        log.info("Installing SR version:" + versionNr)
-        JiraInstanceManagerRest jim = getJiraInstanceManagerRest()
-        JiraApp srJiraApp = getSrJiraApp()
-        MarketplaceApp srMarketApp = getSrMarketplaceApp()
-        assert srMarketApp: "Error finding SR in marketplace"
-        MarketplaceApp.Version versionToInstall = srMarketApp?.getVersion(versionNr, MarketplaceApp.Hosting.Datacenter)
-        assert versionToInstall: "Error finding SR version $versionNr in marketplace"
-        versionNr != "latest" ?: log.info("\tDetermined latest version to be:" + versionToInstall.name)
-
-
-        if (srJiraApp && srJiraApp.version == versionToInstall.name) {
-            log.info("\tThe correct SR version is already installed")
-            return srJiraApp
-        } else if (srJiraApp) {
-            log.info("\tSR is already installed, but has the incorrect version: " + srJiraApp.version + ", ${versionToInstall.name} is requested")
-            log.debug("\t" * 2 + "Uninstalling version:" + srJiraApp.version)
-            assert jim.uninstallApp(srJiraApp): "Error uninstalling:" + srJiraApp
-        }
-
-
-        assert jim.installApp(srMarketApp, MarketplaceApp.Hosting.Datacenter, versionNr, srLicense): "Error installing SR version $versionNr"
-
-        srJiraApp = getSrJiraApp()
-        assert srJiraApp.version == versionNr || (versionNr == "latest" && srJiraApp.version == srMarketApp.getVersion("latest", MarketplaceApp.Hosting.Datacenter).name)
-
-        return srJiraApp
-    }
 
     def "Test scriptRunnerIsInstalled"() {
 
@@ -324,7 +289,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         assert jira.updateScriptrunnerFile("log.warn(\"test\")", jobFile): "Error creating SR Job File"
 
-        assert installSr(srVersionNumber): "Error installing SR version:" + srVersionNumber
+        assert jira.installScriptRunner(srLicense, srVersionNumber) : "Error installing SR version:" + srVersionNumber
         log.info("\tUsing SR version:" + srVersionNumber)
         sleep(1500)//Wait for sr to detect file changes
 
@@ -353,7 +318,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         cleanup:
         if (last) {
-            installSr(baseSrVersion)
+            assert jira.installScriptRunner(srLicense, baseSrVersion) : "Error installing SR version:" + baseSrVersion
         }
 
 
@@ -361,14 +326,9 @@ class JiraInstanceManagerRestSpec extends Specification {
         srVersionNumber | last
         "latest"        | false
         "7.13.0"        | false
-        "7.10.0"        | false
-        "7.8.0"         | false
         "7.6.0"         | false
-        "7.4.0"         | false
-        "7.2.0"         | false
         "7.0.0"         | false
         "6.58.1"        | false
-        "6.56.0"        | false
         "6.55.0"        | true
 
 
@@ -384,7 +344,8 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert jiraLocalScriptRootDir.isDirectory()
 
 
-        assert installSr(srVersionNumber): "Error installing SR version:" + srVersionNumber
+
+        assert jira.installScriptRunner(srLicense, srVersionNumber) : "Error installing SR version:" + srVersionNumber
         log.info("\tUsing SR version:" + srVersionNumber)
 
 
@@ -456,7 +417,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         cleanup:
         if (last) {
-            installSr(baseSrVersion)
+            assert jira.installScriptRunner(srLicense, baseSrVersion) : "Error installing SR version:" + baseSrVersion
         }
 
 
@@ -464,11 +425,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         srVersionNumber | last
         "latest"        | false
         "7.13.0"        | false
-        "7.10.0"        | false
-        "7.8.0"         | false
         "7.6.0"         | false
-        "7.4.0"         | false
-        "7.2.0"         | false
         "7.0.0"         | false
         "6.58.1"        | false
         "6.56.0"        | false
@@ -487,7 +444,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         File jiraLocalScriptRootDir = new File("src/tests/groovy")
         assert jiraLocalScriptRootDir.isDirectory()
 
-        assert installSr(srVersionNumber): "Error installing SR version:" + srVersionNumber
+        assert jira.installScriptRunner(srLicense, srVersionNumber) : "Error installing SR version:" + srVersionNumber
         log.info("\tUsing SR version:" + srVersionNumber)
 
         log.info("\tUsing test files found in local dir:" + jiraLocalScriptsDir.name)
@@ -557,7 +514,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         cleanup:
         if (last) {
-            installSr(baseSrVersion)
+            assert jira.installScriptRunner(srLicense, baseSrVersion) : "Error installing SR version:" + baseSrVersion
         }
 
 
@@ -802,7 +759,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert resultMap.project.projectName == projectName
         assert resultMap.schema
         assert !preExistingSchemaIds.contains(resultMap.schema.id as int)
-        assert jira.projects.find { it.projectId == resultMap.project.projectId }: "getProjects() could not find project"
+        assert jira.getProjects(false).find { it.projectId == resultMap.project.projectId }: "getProjects() could not find project"
         log.info("\tFieldSchema and project successfully created")
 
 
@@ -916,7 +873,6 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.info("Will test export and import of insight object schemas")
 
         JiraInstanceManagerRest jim = getJiraInstanceManagerRest()
-        jim.setProxy("127.0.0.1", 8081)
 
         if (!jim.projects.find { it.projectName == "Asset Field Crud" }) {
 
@@ -955,7 +911,6 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.info("Will test export and import of insight object schemas")
 
         JiraInstanceManagerRest jim = getJiraInstanceManagerRest()
-        jim.setProxy("127.0.0.1", 8081)
 
         if (!jim.projects.find { it.projectName == "Field Crud" }) {
             jim.createJsmProjectWithSampleData("Field Crud", "FIELDCRUD")

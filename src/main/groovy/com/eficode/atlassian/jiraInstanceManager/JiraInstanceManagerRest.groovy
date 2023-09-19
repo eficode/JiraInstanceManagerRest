@@ -158,7 +158,7 @@ final class JiraInstanceManagerRest {
 
         UnirestInstance unirestInstance = Unirest.spawnInstance()
         unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl).verifySsl(verifySsl)
-        if (unirest.config().proxy.host) {
+        if (unirest.config().proxy?.host) {
             unirestInstance.config().proxy(unirest.config().proxy.host, unirest.config().proxy.port)
         }
 
@@ -258,7 +258,7 @@ final class JiraInstanceManagerRest {
         if (username && password) {
             getRequest.basicAuth(username, password)
         }
-        if (unirest.config().proxy.host) {
+        if (unirest.config().proxy?.host) {
             unirestInstance.config().proxy(unirest.config().proxy.host, unirest.config().proxy.port)
         }
 
@@ -576,6 +576,18 @@ final class JiraInstanceManagerRest {
 
         return MarketplaceApp.searchMarketplace(text, hosting)
 
+    }
+
+    /**
+     * A helper method for installing ScriptRunner DataCenter
+     * If SR is already installed but of a different version, it will be uninstalled and replaced with the
+     * correct version
+     * @param licence License key for ScriptRunner to use
+     * @param versionNr The versions to use, defaults to "latest"
+     * @return The JiraApp representation of the installed SR
+     */
+    JiraApp installScriptRunner(String licence, String versionNr = "latest"){
+        return MarketplaceApp.installScriptRunner(this, licence, versionNr)
     }
 
 
