@@ -586,7 +586,7 @@ final class JiraInstanceManagerRest {
      * @param versionNr The versions to use, defaults to "latest"
      * @return The JiraApp representation of the installed SR
      */
-    JiraApp installScriptRunner(String licence, String versionNr = "latest"){
+    JiraApp installScriptRunner(String licence, String versionNr = "latest") {
         return MarketplaceApp.installScriptRunner(this, licence, versionNr)
     }
 
@@ -872,6 +872,56 @@ final class JiraInstanceManagerRest {
         return true
 
 
+    }
+
+
+    /**
+     * Remove annoying setup steps and pop-ups common when a new environment is setup
+     * Intended to be run after setupH2Database() but can be run when a new user is created as well
+     * @param userIsAdmin If true and if user has enough permissions admin pop-ups/warnings will also be removed
+     * @return true on success
+     */
+    boolean setupUserBasicPref(boolean userIsAdmin = true) {
+
+        try {
+
+
+            log.info("Setting basic user preferences, and removing annoying popups")
+            HttpResponse<Map> languageResponse = unirest.delete("/rest/api/2/mypreferences").queryString("key", "jira.user.locale").body(-1).contentType("application/json").asObject(Map)
+            assert languageResponse.status == 404 && languageResponse.body.get("errorMessages").toString().contains("key not found")
+            log.debug("\tSet user language to english")
+
+            if (userIsAdmin) {
+                assert unirest.post("/rest/onboarding/1.0/flow/cyoaFirstUseFlow/complete").asEmpty().status == 200: "Error skipping project import"
+                assert unirest.get("/secure/JIMOnboardingPage.jspa").asEmpty().status == 200: "Error skipping project import"
+                assert unirest.get("/secure/Dashboard.jspa").asEmpty().status == 200: "Error skipping project import"
+                log.debug("\tSkipped import of projects")
+
+            }
+
+
+            assert unirest.put("/rest/flags/1.0/flags/com.atlassian.jira.tzdetect.3600000%2C7200000/dismiss").asEmpty().status == 204: "Error Setting user timezone to default"
+            log.debug("\tSet default timezone")
+
+
+            if (userIsAdmin) {
+                assert unirest.post("/rest/troubleshooting/1.0/dismissNotification").contentType("application/json").body(["notificationId": "1", "snooze": true, "username": adminUsername]).asEmpty().status == 204: "Error removing H2 DB warning"
+                log.debug("\tRemoved warning about using local H2 database")
+
+            }
+
+
+            assert unirest.post("/rest/helptips/1.0/tips").contentType("application/json").body(["id": "qs-onboarding-tip"]).asEmpty().status == 204: "Error removing search suggestion"
+            log.debug("\tRemoved popup information about JQL")
+
+            assert unirest.put("/rest/flags/1.0/flags/com.atlassian.jira.reindex.required/dismiss").asEmpty().status == 204: "Error Re-Index suggestion"
+            log.debug("\tRemoved popup suggesting a reindex")
+        }catch (Throwable tr) {
+            log.warn("There where errors setting basic user preferences:" + tr.message)
+            return false
+        }
+
+        return true
     }
 
     /** --- Project CRUD --- **/
