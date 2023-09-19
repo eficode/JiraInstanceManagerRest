@@ -1,5 +1,6 @@
 package com.eficode.atlassian.jiraInstanceManager.beans
 
+import com.eficode.atlassian.jiraInstanceManager.JiraInstanceManagerRest
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
 import kong.unirest.HttpResponse
@@ -12,6 +13,8 @@ import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 import unirest.shaded.com.google.gson.annotations.SerializedName
 
 
@@ -22,6 +25,7 @@ class MarketplaceApp {
 
     static final UnirestInstance unirest = Unirest.spawnInstance()
     static final ObjectMapper objectMapper = new ObjectMapper()
+    static Logger log = LoggerFactory.getLogger(MarketplaceApp.class)
 
     @JsonProperty("_links")
     public Map links
@@ -124,6 +128,39 @@ class MarketplaceApp {
         return versions
 
     }
+
+
+    static JiraApp installScriptRunner(JiraInstanceManagerRest jim, String srLicense, String versionNr = "latest") {
+
+        log.info("Installing SR version:" + versionNr)
+
+        JiraApp srJiraApp = jim.getInstalledApps().find { it.key == "com.onresolve.jira.groovy.groovyrunner" }
+        MarketplaceApp srMarketApp = jim.searchMarketplace("Adaptavist ScriptRunner for JIRA", Hosting.Datacenter).find { it.key == "com.onresolve.jira.groovy.groovyrunner" }
+        assert srMarketApp: "Error finding SR in marketplace"
+        Version versionToInstall = srMarketApp?.getVersion(versionNr, Hosting.Datacenter)
+        assert versionToInstall: "Error finding SR version $versionNr in marketplace"
+        versionNr != "latest" ?: log.info("\tDetermined latest version to be:" + versionToInstall.name)
+
+
+        if (srJiraApp && srJiraApp.version == versionToInstall.name) {
+            log.info("\tThe correct SR version is already installed")
+            return srJiraApp
+        } else if (srJiraApp) {
+            log.info("\tSR is already installed, but has the incorrect version: " + srJiraApp.version + ", ${versionToInstall.name} is requested")
+            log.debug("\t" * 2 + "Uninstalling version:" + srJiraApp.version)
+            assert jim.uninstallApp(srJiraApp): "Error uninstalling:" + srJiraApp
+        }
+
+
+        assert jim.installApp(srMarketApp, Hosting.Datacenter, versionNr, srLicense): "Error installing SR version $versionNr"
+
+        srJiraApp = jim.getInstalledApps().find { it.key == "com.onresolve.jira.groovy.groovyrunner" }
+        assert srJiraApp.version == versionNr || (versionNr == "latest" && srJiraApp.version == srMarketApp.getVersion("latest", Hosting.Datacenter).name)
+
+        return srJiraApp
+    }
+
+
 
     @JsonAnyGetter
     Map<String, Object> getAdditionalProperties() {

@@ -1,11 +1,14 @@
 package com.eficode.atlassian.jiraInstanceManager
 
 import com.eficode.atlassian.jiraInstanceManager.beans.AssetAutomationBean
+import com.eficode.atlassian.jiraInstanceManager.beans.FieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
+import com.eficode.atlassian.jiraInstanceManager.beans.IssueTypeBean
 import com.eficode.atlassian.jiraInstanceManager.beans.JiraApp
 import com.eficode.atlassian.jiraInstanceManager.beans.MarketplaceApp
 import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
+import com.eficode.atlassian.jiraInstanceManager.beans.ScriptFieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.SpockResult
 import com.eficode.atlassian.jiraInstanceManager.beans.SrJob
 import groovy.ant.AntBuilder
@@ -41,6 +44,13 @@ final class JiraInstanceManagerRest {
     public String adminUsername = "admin"
     public String adminPassword = "admin"
     public boolean useSamlNoSso = false //Not tested
+    private boolean verifySsl = true
+
+
+    ArrayList<FieldBean.FieldType> cached_FieldTypes = []
+    ArrayList<FieldBean> cached_FieldBeans = []
+    ArrayList<ProjectBean> cached_Projects = []
+    ArrayList<IssueTypeBean> cached_IssueTypes = []
 
 
     /**
@@ -65,6 +75,17 @@ final class JiraInstanceManagerRest {
         adminPassword = password
         unirest.config().defaultBaseUrl(baseUrl).setDefaultBasicAuth(adminUsername, adminPassword)
 
+    }
+
+    void setProxy(String proxyUrl, int proxyPort) {
+
+        unirest.config().proxy(proxyUrl, proxyPort)
+
+    }
+
+    void setVerifySsl(boolean verify) {
+        verifySsl = verify
+        unirest.config().verifySsl(verifySsl)
     }
 
     /** --- REST Backend --- **/
@@ -104,7 +125,7 @@ final class JiraInstanceManagerRest {
         log.info("\tTransforming admin cookies in to user cookies")
 
         UnirestInstance unirestInstance = Unirest.spawnInstance()
-        unirestInstance.config().defaultBaseUrl(baseUrl)
+        unirestInstance.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
         HttpResponse switchUserResponse = unirest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.SwitchUser")
                 .body(["FIELD_USER_ID": userKey, "canned-script": "com.onresolve.scriptrunner.canned.jira.admin.SwitchUser"])
                 .contentType("application/json")
@@ -116,7 +137,7 @@ final class JiraInstanceManagerRest {
         assert switchUserResponse.status == 200, "Error getting cookies for user " + userKey
 
         UnirestInstance verifyInstance = Unirest.spawnInstance()
-        verifyInstance.config().defaultBaseUrl(baseUrl)
+        verifyInstance.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
 
         Map verifyMap = verifyInstance.get("/rest/api/2/myself").cookie(cookies).asJson().getBody().object.toMap()
         verifyInstance.shutDown()
@@ -136,7 +157,11 @@ final class JiraInstanceManagerRest {
         Map cookies = useSamlNoSso ? getCookiesFromRedirect("/secure/admin/WebSudoAuthenticate") : getCookiesFromRedirect("/login.jsp?nosso")
 
         UnirestInstance unirestInstance = Unirest.spawnInstance()
-        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl)
+        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl).verifySsl(verifySsl)
+        if (unirest.config().proxy?.host) {
+            unirestInstance.config().proxy(unirest.config().proxy.host, unirest.config().proxy.port)
+        }
+
         HttpResponse webSudoResponse = unirestInstance.post("/secure/admin/WebSudoAuthenticate.jspa")
                 .cookie(cookies.cookies)
                 .field("atl_token", cookies.cookies.find { it.name == "atlassian.xsrf.token" }.value)
@@ -226,13 +251,18 @@ final class JiraInstanceManagerRest {
     Map getCookiesFromRedirect(String path, String username = adminUsername, String password = adminPassword, Map headers = [:]) {
 
         UnirestInstance unirestInstance = Unirest.spawnInstance()
-        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl)
+        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl).verifySsl(verifySsl)
 
         Cookies cookies = new Cookies()
         GetRequest getRequest = unirestInstance.get(path).headers(headers)
         if (username && password) {
             getRequest.basicAuth(username, password)
         }
+        if (unirest.config().proxy?.host) {
+            unirestInstance.config().proxy(unirest.config().proxy.host, unirest.config().proxy.port)
+        }
+
+
         HttpResponse getResponse = getRequest.asString()
         cookies = extractCookiesFromResponse(getResponse, cookies)
 
@@ -548,6 +578,18 @@ final class JiraInstanceManagerRest {
 
     }
 
+    /**
+     * A helper method for installing ScriptRunner DataCenter
+     * If SR is already installed but of a different version, it will be uninstalled and replaced with the
+     * correct version
+     * @param licence License key for ScriptRunner to use
+     * @param versionNr The versions to use, defaults to "latest"
+     * @return The JiraApp representation of the installed SR
+     */
+    JiraApp installScriptRunner(String licence, String versionNr = "latest"){
+        return MarketplaceApp.installScriptRunner(this, licence, versionNr)
+    }
+
 
     /** --- App management --- **/
 
@@ -703,7 +745,7 @@ final class JiraInstanceManagerRest {
         cookies = redirectResponse.cookies
 
         UnirestInstance localUnirest = Unirest.spawnInstance()
-        localUnirest.config().defaultBaseUrl(baseUrl)
+        localUnirest.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
         String setupAppPropertiesUrl = "/secure/SetupApplicationProperties.jspa"
         HttpResponse setAppProperties = localUnirest.post(setupAppPropertiesUrl)
                 .cookie(cookies)
@@ -780,7 +822,7 @@ final class JiraInstanceManagerRest {
         log.info("Setting up a blank H2 database for JIRA")
         long startTime = System.currentTimeMillis()
         UnirestInstance localUnirest = Unirest.spawnInstance()
-        localUnirest.config().defaultBaseUrl(baseUrl)
+        localUnirest.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
         Cookie xsrfCookie = null
 
         while (startTime + (3 * 60000) > System.currentTimeMillis()) {
@@ -905,6 +947,7 @@ final class JiraInstanceManagerRest {
     /**
      * This will create a demo project with mock data using one of the project templates
      * The project will contain issues
+     * Sets $adminUsername as project lead
      * @param name Name of the new project
      * @param projectKey Key of the new project
      * @param template One of the predefined templates:<br>
@@ -955,7 +998,7 @@ final class JiraInstanceManagerRest {
     }
 
     /**
-     *
+     * Sets $adminUsername as project lead
      * @param name
      * @param key
      * @param template <br>
@@ -1006,7 +1049,11 @@ final class JiraInstanceManagerRest {
     }
 
 
-    ArrayList<ProjectBean> getProjects() {
+    ArrayList<ProjectBean> getProjects(boolean useCache = true) {
+
+        if (useCache && cached_Projects) {
+            return cached_Projects
+        }
 
         log.info("Retrieving projects from " + baseUrl)
         ArrayList<ProjectBean> projectBeans = []
@@ -1020,6 +1067,7 @@ final class JiraInstanceManagerRest {
         }
 
 
+        cached_Projects = projectBeans
         return projectBeans
 
     }
@@ -1076,6 +1124,61 @@ final class JiraInstanceManagerRest {
     /** --- Field CRUD --- **/
 
 
+    /**
+     * Create a new JIRA Customfield field
+     * @param name Name of the new field
+     * @param description (Optional) Description of the new field
+     * @param searcherKey The key of the searcher to use, can be found using getFieldTypesInInstance()
+     * @param typeKey The key of the type to use, can be found using getFieldTypesInInstance()
+     * @param projectIds The projects to apply to, set to [] for all
+     * @param issueTypeIds The IDs to apply to, set to [-1] for all
+     * @return a new FieldBean
+     */
+    FieldBean createCustomfield(String name, String searcherKey, String typeKey, String description = "", ArrayList<String> projectIds = [], ArrayList<String> issueTypeIds = ["-1"]) {
+
+
+        return FieldBean.createCustomfield(this, name, searcherKey, typeKey, description, projectIds, issueTypeIds)
+
+    }
+
+
+    /**
+     * Get all fields (System and Custom)
+     * @param useCache If true, will return the same data as last time queried
+     * @return
+     */
+    ArrayList<FieldBean> getFields(boolean useCache = true) {
+
+        if (useCache && cached_FieldBeans) {
+            return cached_FieldBeans
+        }
+
+        cached_FieldBeans = FieldBean.getFields(this)
+
+        return cached_FieldBeans
+
+    }
+
+    /**
+     * Delete a customFiled
+     * @param fieldId ex: customfield_10000
+     * @return true on success
+     */
+    boolean deleteCustomField(String fieldId) {
+        return FieldBean.deleteCustomField(this, fieldId)
+    }
+
+    ArrayList<FieldBean.FieldType> getFieldTypes(boolean useCache = true) {
+
+        if (useCache && cached_FieldTypes) {
+            return cached_FieldTypes
+        }
+
+        cached_FieldTypes = FieldBean.FieldType.getFieldTypes(this)
+        return cached_FieldTypes
+    }
+
+    @Deprecated
     ArrayList<String> getFieldIds(String fieldName) {
 
         ArrayList<Map<String, Object>> allFields = getFieldsRaw()
@@ -1087,6 +1190,7 @@ final class JiraInstanceManagerRest {
 
     }
 
+    @Deprecated
     String getFieldId(String fieldName, String fieldType) {
 
         ArrayList<Map<String, Object>> allFields = getFieldsRaw()
@@ -1104,6 +1208,7 @@ final class JiraInstanceManagerRest {
 
     }
 
+    @Deprecated
     ArrayList<Map<String, Object>> getFieldsRaw() {
 
 
@@ -1114,6 +1219,22 @@ final class JiraInstanceManagerRest {
 
 
     }
+
+    /** --- Issue Type Actions --- **/
+
+
+    ArrayList<IssueTypeBean> getIssueTypes(boolean useCache = true) {
+
+        if (useCache && cached_IssueTypes) {
+            return cached_IssueTypes
+        }
+
+        cached_IssueTypes = IssueTypeBean.getIssueTypes(this)
+
+        return cached_IssueTypes
+
+    }
+
 
     /** --- Scriptrunner Actions --- **/
 
@@ -1393,7 +1514,7 @@ final class JiraInstanceManagerRest {
 
                     destinationPath = destinationPath.startsWith("/") ? destinationPath.substring(1) : destinationPath
 
-                    log.info("\tUpdating:" + subFile.name + ", Destination: " +  destinationPath)
+                    log.info("\tUpdating:" + subFile.name + ", Destination: " + destinationPath)
                     assert updateScriptrunnerFile(subFile.text, destinationPath), "Error updating " + subFile.name
 
                 }
@@ -1667,6 +1788,20 @@ final class JiraInstanceManagerRest {
     }
 
 
+    /** --- ScriptRunner - Script Fields --- **/
+
+
+    /**
+     * Get all ScriptRunner Script Fields, only tested for "Custom Script Field"
+     * @return
+     */
+    ArrayList<ScriptFieldBean> getScriptFields() {
+
+        return ScriptFieldBean.getScriptFields(this)
+
+
+    }
+
     /**
      * WIP
      * @param group
@@ -1812,14 +1947,14 @@ final class JiraInstanceManagerRest {
 
 
     }
-    
-    String getUserKey(String userName){
+
+    String getUserKey(String userName) {
         Cookies cookies = acquireWebSudoCookies()
         HttpResponse response = unirest.get("/rest/api/2/user")
-                                        .cookie(cookies)
-                                        .header("Content-Type", "application/json")
-                                        .queryString(["username":userName])
-                                        .asJson()
+                .cookie(cookies)
+                .header("Content-Type", "application/json")
+                .queryString(["username": userName])
+                .asJson()
         assert response.status == 200: "Error getting userKey"
         return response.body.object.toMap().key
 
