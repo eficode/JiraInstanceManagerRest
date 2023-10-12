@@ -156,6 +156,9 @@ final class JiraInstanceManagerRest {
     Cookies acquireWebSudoCookies() {
         Map cookies = useSamlNoSso ? getCookiesFromRedirect("/secure/admin/WebSudoAuthenticate") : getCookiesFromRedirect("/login.jsp?nosso")
 
+        Cookie xsrfCookie = cookies.cookies.find { it.name == "atlassian.xsrf.token" }
+        assert xsrfCookie: "Could not get atlassian.xsrf.token-cookie needed for WebSudo"
+
         UnirestInstance unirestInstance = Unirest.spawnInstance()
         unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl).verifySsl(verifySsl)
         if (unirest.config().proxy?.host) {
@@ -164,7 +167,7 @@ final class JiraInstanceManagerRest {
 
         HttpResponse webSudoResponse = unirestInstance.post("/secure/admin/WebSudoAuthenticate.jspa")
                 .cookie(cookies.cookies)
-                .field("atl_token", cookies.cookies.find { it.name == "atlassian.xsrf.token" }.value)
+                .field("atl_token", xsrfCookie.value)
                 .field("webSudoPassword", adminPassword).asEmpty()
 
 
@@ -637,6 +640,16 @@ final class JiraInstanceManagerRest {
     }
 
     /**
+     * Install a specific version of a MarketplaceApp
+     * @param version A MarketplaceApp.Version object
+     * @param license (Optional) A license key for the app
+     * @return true on success
+     */
+    boolean installApp(MarketplaceApp.Version version, String license = null) {
+        return installApp(version.getDownloadUrl(), license)
+    }
+
+    /**
      * Install an App from Marketplace
      * @param appUrl Can be obtained by going to the marketplace listing of the app, checking its versions and getting the "Download" link URL
      *      Ex: https://marketplace.atlassian.com/download/apps/123/version/456
@@ -877,7 +890,7 @@ final class JiraInstanceManagerRest {
 
     /**
      * Remove annoying setup steps and pop-ups common when a new environment is setup
-     * Intended to be run after setupH2Database() but can be run when a new user is created as well
+     * Intended to be run after setApplicationProperties() but can be run when a new user is created as well
      * @param userIsAdmin If true and if user has enough permissions admin pop-ups/warnings will also be removed
      * @return true on success
      */
@@ -916,12 +929,96 @@ final class JiraInstanceManagerRest {
 
             assert unirest.put("/rest/flags/1.0/flags/com.atlassian.jira.reindex.required/dismiss").asEmpty().status == 204: "Error Re-Index suggestion"
             log.debug("\tRemoved popup suggesting a reindex")
-        }catch (Throwable tr) {
+        } catch (Throwable tr) {
             log.warn("There where errors setting basic user preferences:" + tr.message)
             return false
         }
 
         return true
+    }
+
+
+    /**
+     * Waits for JIRAs REST-endpoint /status to return RUNNING
+     * Note that Apps and other system funcntioanlity might not be ready yet.
+     * Consider using waitForSrToBeResponsive() if your JIRA has ScriptRunner
+     * @param timeOutS If this timeout is breached false will be returned
+     * @return true if JIRA got responsive before timeout was reached
+     */
+    boolean waitForJiraToBeResponsive(long timeOutS = 90) {
+        UnirestInstance jsmUnirest = getUnirest()
+
+        HttpResponse<Map> response = null
+
+        log.info("\tWaiting for JIRA to become responsive")
+        long start = System.currentTimeSeconds()
+        while (response == null || response.body?.get("state") != "RUNNING") {
+
+            try {
+
+
+                response = jsmUnirest.get("/status").asObject(Map.class).ifFailure { log.warn("JIRA not yet responsive") }
+
+                if ((start + timeOutS) < System.currentTimeSeconds()) {
+                    log.error("Timed out waiting for JIRA to start after ${System.currentTimeSeconds() - start} seconds")
+                    return false
+                }
+
+            } catch (Throwable ignored) {
+                sleep(2000)
+            }
+
+            if (!response || response.status != 200){
+                sleep(2000)
+            }
+
+
+        }
+        jsmUnirest.shutDown()
+        log.debug("\t\tJIRA started after ${System.currentTimeSeconds() - start} seconds")
+        return response.body.get("state") == "RUNNING"
+    }
+
+    /**
+     * Waits for ScriptRunner to become responsive, a good way to determine that JIRA is ready after starting up
+     * @param timeOutS If this timeout is breached false will be returned
+     * @return true if SR got responsive before timeout was reached
+     */
+    boolean waitForSrToBeResponsive(long timeOutS = 90) {
+
+
+        log.info("Waiting for ScriptRunner to become responsive")
+        long start = System.currentTimeSeconds()
+
+        boolean srResponsive = false
+        while (!srResponsive) {
+
+
+            try {
+
+                Map rawResponse = executeLocalScriptFile("return true")
+                srResponsive = rawResponse.success
+
+                if (!srResponsive) {
+                    log.warn("\tSR not yet responsive")
+                    sleep(2000)
+                }
+
+            } catch (Throwable ignored) {
+                log.warn("\tSR not yet responsive")
+                sleep(2000)
+            }
+
+            if ((start + timeOutS) < System.currentTimeSeconds()) {
+                log.error("\tTimed out waiting for JSM to start after ${System.currentTimeSeconds() - start} seconds")
+                return false
+            }
+
+        }
+        log.debug("\t\tSR started after ${System.currentTimeSeconds() - start} seconds")
+
+        return srResponsive
+
     }
 
     /** --- Project CRUD --- **/
