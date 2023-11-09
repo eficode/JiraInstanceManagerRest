@@ -17,6 +17,7 @@ import org.apache.groovy.json.internal.LazyMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
+import java.util.regex.Matcher
 
 class ScriptFieldBean {
 
@@ -188,6 +189,7 @@ class ScriptFieldBean {
         }
         ArrayList<ScriptFieldExecution> executions = objectMapper.convertValue(rawExecutions, new TypeReference<ArrayList<ScriptFieldExecution>>() {})
 
+
         return executions
 
 
@@ -208,11 +210,31 @@ class ScriptFieldBean {
         String exception
         @JsonProperty("payload")
         Map payload
-        @JsonProperty("log")
-        String log
 
         @JsonIgnore
+        private static Logger log = LoggerFactory.getLogger(ScriptFieldExecution.class)
+        @JsonIgnore
         private Map<String, Object> additionalProperties = new LinkedHashMap<String, Object>();
+
+
+
+        @JsonSetter("payload")
+        public void setPayload(Map payloadRaw ){
+            payload = payloadRaw
+
+            Matcher issueKeyMatcher = payload.issue =~ /(\w+-\d+)/
+            if (issueKeyMatcher.size() != 1) {
+                log.warn("Could not determine issueKeys for ScriptFieldExecution, field:" + payload.customField)
+            }else {
+                payload.issue = issueKeyMatcher[0][1]
+            }
+
+        }
+
+
+        String getIssueKey() {
+            return payload?.issue
+        }
 
         @JsonAnyGetter
         public Map<String, Object> getAdditionalProperties() {
