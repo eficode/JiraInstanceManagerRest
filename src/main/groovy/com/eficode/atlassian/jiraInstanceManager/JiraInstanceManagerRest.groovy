@@ -285,6 +285,31 @@ final class JiraInstanceManagerRest {
         return ["cookies": cookies, "lastResponse": getResponse]
     }
 
+    /** --- System Settings & Actions --- ***/
+
+    /**
+     * This is the equivalent of using "System/Mark Logs".
+     * The main system logs will be marked with a an optional custom message and
+     * also optionally rolled oved
+     * @param markMessage An optional message mark the logs with
+     * @param logRollover (default false) if set to true, new logfiles will be created and then marked
+     * @return true on success
+     */
+    boolean markLogs(String markMessage = "", boolean logRollover = false) {
+
+
+        HttpResponse<Empty> response = unirest.post("/secure/admin/ViewLogging!markLogs.jspa")
+                .header("X-Atlassian-Token", "no-check")
+                .field("markMessage", markMessage)
+                .field("rollOver", logRollover.toString())
+                .field("mark", "Mark").asEmpty()
+
+        String location = response.getHeaders().get("Location").find {true}
+        return response.status == 302 && location == "ViewLogging.jspa"
+
+    }
+
+
     /** --- Insight --- **/
 
     /**
@@ -968,7 +993,7 @@ final class JiraInstanceManagerRest {
                 sleep(2000)
             }
 
-            if (!response || response.status != 200){
+            if (!response || response.status != 200) {
                 sleep(2000)
             }
 
