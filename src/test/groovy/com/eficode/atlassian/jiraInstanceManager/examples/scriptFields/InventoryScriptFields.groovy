@@ -23,6 +23,8 @@ ArrayList<ScriptFieldBean> scriptFieldBeans = jim.getScriptFields()
 ArrayList<ScriptFieldBeanReport> scriptFieldsReports = scriptFieldBeans.collect { new ScriptFieldBeanReport(it) }
 double stop = System.currentTimeMillis()
 
+scriptFieldsReports.findAll {it.mayBreakIndexDueToAssets()}.collect {it.scriptFieldBean.name}.each {println(it)}
+return
 
 scriptFieldsReports.find {it.scriptFieldBean.customFieldId == 11400}.getPatchedScriptFile("SERVICE")
 //scriptFieldsReports.findAll {it.mayBreakIndexDueToAssets()}.collect {it.getPatchedScriptFile("SERVICE")}
