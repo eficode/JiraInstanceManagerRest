@@ -12,8 +12,6 @@ import com.fasterxml.jackson.databind.ObjectMapper
 import kong.unirest.Cookies
 import kong.unirest.GenericType
 import kong.unirest.HttpResponse
-import kong.unirest.UnirestInstance
-import org.apache.groovy.json.internal.LazyMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -117,10 +115,10 @@ class ScriptFieldBean {
     static ArrayList<ScriptFieldBean> getScriptFields(JiraInstanceManagerRest jim) {
 
         Cookies cookies = jim.acquireWebSudoCookies()
-        HttpResponse response = jim.unirest.get("/rest/scriptrunner-jira/latest/scriptfields?").cookie(cookies).asObject(new GenericType<ArrayList<Map>>() {
+        HttpResponse response = jim.rest.get("/rest/scriptrunner-jira/latest/scriptfields?").cookie(cookies).asObject(new GenericType<ArrayList<Map>>() {
         })
 
-        assert response.status == 200: "Error getting ScriptFields from " + jim.unirest.config().defaultBaseUrl
+        assert response.status == 200: "Error getting ScriptFields from " + jim.rest.config().defaultBaseUrl
         ArrayList<Map> rawFields = response.body
 
         ArrayList<ScriptFieldBean> scriptFieldBeans = objectMapper.convertValue(rawFields, new TypeReference<ArrayList<ScriptFieldBean>>() {
@@ -180,7 +178,7 @@ class ScriptFieldBean {
      */
     ArrayList<ScriptFieldExecution> getExecutions() {
 
-        HttpResponse<ArrayList<Map>> rawResponse = jiraInstance.unirest.get("/rest/scriptrunner/latest/diagnostics/results?functionId=$fieldConfigurationSchemeId").asObject(new GenericType<ArrayList<Map>>() {})
+        HttpResponse<ArrayList<Map>> rawResponse = jiraInstance.rest.get("/rest/scriptrunner/latest/diagnostics/results?functionId=$fieldConfigurationSchemeId").asObject(new GenericType<ArrayList<Map>>() {})
         assert rawResponse.status == 200 : "Error getting execution history for $this"
         ArrayList<Map> rawExecutions = rawResponse.body
         rawExecutions.each {

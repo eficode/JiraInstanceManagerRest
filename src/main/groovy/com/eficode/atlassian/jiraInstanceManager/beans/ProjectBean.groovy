@@ -89,7 +89,7 @@ class ProjectBean {
 
         String roleUrl = getProjectRoleUrl(roleName)
 
-        HttpResponse<Map<String, String>> actorsRawResponse = jiraInstance.unirest.get(roleUrl)
+        HttpResponse<Map<String, String>> actorsRawResponse = jiraInstance.rest.get(roleUrl)
                 .cookie(jiraInstance.acquireWebSudoCookies())
                 .asObject(Map)
 
@@ -111,7 +111,7 @@ class ProjectBean {
      "Tempo Project Managers": "http://jira.localhost:8080/rest/api/2/project/10000/role/10102"}
      */
     Map<String, String> getProjectRolesRaw() {
-        HttpResponse<Map<String, String>> roleNamesResponse = jiraInstance.unirest.get("/rest/api/2/project/$projectKey/role")
+        HttpResponse<Map<String, String>> roleNamesResponse = jiraInstance.rest.get("/rest/api/2/project/$projectKey/role")
                 .cookie(jiraInstance.acquireWebSudoCookies())
                 .asObject(Map)
 
@@ -136,9 +136,9 @@ class ProjectBean {
 
         String roleUrl = getProjectRoleUrl(roleName)
 
-        HttpResponse<Map<String, Object>> roleAddResponse = jiraInstance.unirest.post(roleUrl).contentType("application/json").cookie(jiraInstance.acquireWebSudoCookies()).body(["user": [userName]]).asObject(Map)
+        HttpResponse<Map<String, Object>> roleAddResponse = jiraInstance.rest.post(roleUrl).contentType("application/json").cookie(jiraInstance.acquireWebSudoCookies()).body(["user": [userName]]).asObject(Map)
 
-        assert roleAddResponse.status == 200: "Error adding $userName to $roleName using POST to url:" + roleUrl
+        assert roleAddResponse.status == 200: "Error adding $userName to $roleName using POST to url:" + roleUrl +", got response:" + roleAddResponse.body.toString()
 
         ArrayList<Map<String, String>> actors = roleAddResponse.body.actors as ArrayList<Map<String, String>>
 
