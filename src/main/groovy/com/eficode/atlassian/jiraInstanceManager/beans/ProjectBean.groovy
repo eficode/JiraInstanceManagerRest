@@ -138,7 +138,7 @@ class ProjectBean {
 
         HttpResponse<Map<String, Object>> roleAddResponse = jiraInstance.rest.post(roleUrl).contentType("application/json").cookie(jiraInstance.acquireWebSudoCookies()).body(["user": [userName]]).asObject(Map)
 
-        assert roleAddResponse.status == 200: "Error adding $userName to $roleName using POST to url:" + roleUrl
+        assert roleAddResponse.status == 200: "Error adding $userName to $roleName using POST to url:" + roleUrl +", got response:" + roleAddResponse.body.toString()
 
         ArrayList<Map<String, String>> actors = roleAddResponse.body.actors as ArrayList<Map<String, String>>
 
