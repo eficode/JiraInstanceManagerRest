@@ -1154,7 +1154,7 @@ final class JiraInstanceManagerRest {
         ProjectBean projectBean
         try {
             Map returnMap = createProjectResponse.body.getObject().toMap()
-            projectBean = ProjectBean.fromMap(returnMap)
+            projectBean = ProjectBean.fromMap(returnMap, this)
 
             log.info("\tCreated Project: ${projectBean.projectKey}")
             log.info("\t\tURL:" + (baseUrl + projectBean.returnUrl))
@@ -1200,7 +1200,7 @@ final class JiraInstanceManagerRest {
         assert createProjectResponse.status == 200, "Error creating project:" + createProjectResponse.body.toPrettyString()
 
         Map returnMap = createProjectResponse.body.getObject().toMap()
-        ProjectBean projectBean = ProjectBean.fromMap(returnMap)
+        ProjectBean projectBean = ProjectBean.fromMap(returnMap, this)
 
         log.info("\tCreated Project:" + baseUrl + projectBean.returnUrl)
 
@@ -1234,7 +1234,7 @@ final class JiraInstanceManagerRest {
         log.info("\tGot ${massagedMap.size()} projects")
         massagedMap.each {
             log.trace("\t\tTransforming raw project data for " + it.projectKey)
-            projectBeans.add(ProjectBean.fromMap(it))
+            projectBeans.add(ProjectBean.fromMap(it, this))
         }
 
 
