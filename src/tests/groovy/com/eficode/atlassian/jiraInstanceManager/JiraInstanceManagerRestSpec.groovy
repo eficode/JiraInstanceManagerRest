@@ -708,7 +708,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         then: "The createResult should be true, and the endpoint should return the expected status and data"
         createResult
         queryNewEndpointResponse.status == 200
-        queryNewEndpointResponse.body.object.get("status") == "working"
+        queryNewEndpointResponse.body.getObject().get("status") == "working"
 
         then: "Deleting the new endpoint should succeed"
         jira.deleteScriptedRestEndpointId(jira.getScriptedRestEndpointId("spocTest"))
@@ -727,7 +727,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         then: "The createResult should be true, and the endpoint should return the expected status and data"
         createResult
         queryNewEndpointResponse.status == 200
-        queryNewEndpointResponse.body.object.get("status") == "working"
+        queryNewEndpointResponse.body.getObject().get("status") == "working"
 
         then: "Deleting the new endpoint should succeed"
         jira.deleteScriptedRestEndpointId(jira.getScriptedRestEndpointId("spocTest"))
@@ -795,7 +795,7 @@ class JiraInstanceManagerRestSpec extends Specification {
                         "objectSchemaKey": srcSchemaKey,
                         "type"           : srcSchemaTemplate
 
-                ]).asJson().body.object.toMap()
+                ]).asJson().body.getObject().toMap()
 
         log.info("\tFieldSchema created with status ${sampleSchemaMap.status} and Id: " + sampleSchemaMap.id)
         assert sampleSchemaMap.status == "Ok", "Error creating sample schema"
