@@ -38,7 +38,7 @@ class JiraInstanceManagerRestSpec extends Specification {
     static JsmH2Deployment jsmDep = new JsmH2Deployment(baseUrl)
 
     @Shared
-    static boolean reuseContainer = true //If true and container is already setup, it will be re-used.
+    static boolean reuseContainer = false //If true and container is already setup, it will be re-used.
 
     @Shared
     static String jsmLicense = new File(System.getProperty("user.home") + "/.licenses/jira/jsm.license").text
@@ -135,7 +135,6 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.info("\t" + jiraApp?.toString() + " was installed")
 
         then: "The installation should be successful and the app should now be listed as installed"
-        jiraApp
         jiraApp.version == marketplaceApp.getLatestVersion().name
         assert jira.installedApps.find { it.key == testAppKey && it.version == marketplaceApp.embedded.version.name } != null: "App was not found in list of installed apps"
         log.info("\tInstallation was successful")
@@ -282,6 +281,8 @@ class JiraInstanceManagerRestSpec extends Specification {
         setup:
         log.info("Testing CRUD of SR jobs")
         JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
+        
+
         String jobFile = "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/srJob.groovy"
         String jobNote = "SPOC Job"
         String jobCron = "0 0 22 ? * SAT"
@@ -318,7 +319,12 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         cleanup:
         if (last) {
-            assert jira.installScriptRunner(srLicense, baseSrVersion) : "Error installing SR version:" + baseSrVersion
+            //Not sure why a new instance is needed here, deletion/cleanup fails otherwise
+            JiraInstanceManagerRest jim = new JiraInstanceManagerRest(baseUrl)
+
+            jim.setProxy("localhost", 8081)
+            jim.setVerifySsl(false)
+            assert jim.installScriptRunner(srLicense, baseSrVersion) : "Error installing SR version:" + baseSrVersion
         }
 
 
@@ -332,15 +338,16 @@ class JiraInstanceManagerRestSpec extends Specification {
         "6.55.0"        | true
 
 
+
     }
 
     def "Test runSpockTest"(String srVersionNumber, boolean last) {
         setup:
         log.info("Testing RunSpockTestV7")
         JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
-        File jiraLocalScriptsDir = new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts")
+        File jiraLocalScriptsDir = new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts")
         assert jiraLocalScriptsDir.isDirectory()
-        File jiraLocalScriptRootDir = new File("src/tests/groovy")
+        File jiraLocalScriptRootDir = new File("src/test/groovy")
         assert jiraLocalScriptRootDir.isDirectory()
 
 
@@ -361,7 +368,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "When running the main test as packageToRun, classToRun and methodToRun"
         log.info("Uploading main package test class")
-        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"): "Error updating main spock package file"
+        assert jira.updateScriptrunnerFile(new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"): "Error updating main spock package file"
         sleep(1500)//Wait for sr to detect file changes
         log.info("\tRunning matching package, class and method tests")
         SpockResult spockPackageOut = jira.runSpockTest("com.eficode.atlassian.jiraInstanceManager.jiraLocalScripts")
@@ -381,7 +388,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "When adding a Spock test to a sub package"
         log.info("Uploading sup package test class")
-        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"): "Error updating sub package file"
+        assert jira.updateScriptrunnerFile(new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"): "Error updating sub package file"
         sleep(2000) //SR needs sometime to pick up the diff
 
         log.info("\tRunning the same package, class and method tests")
@@ -399,7 +406,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "Adding a failing test to the main package"
         log.info("Uploading failing test class")
-        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
+        assert jira.updateScriptrunnerFile(new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
         sleep(2000) //SR needs sometime to pick up the diff
 
         log.info("\tRunning the same package, class and method tests")
@@ -439,9 +446,9 @@ class JiraInstanceManagerRestSpec extends Specification {
         setup:
         log.info("Testing RunSpockTestV6")
         JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
-        File jiraLocalScriptsDir = new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts")
+        File jiraLocalScriptsDir = new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts")
         assert jiraLocalScriptsDir.isDirectory()
-        File jiraLocalScriptRootDir = new File("src/tests/groovy")
+        File jiraLocalScriptRootDir = new File("src/test/groovy")
         assert jiraLocalScriptRootDir.isDirectory()
 
         assert jira.installScriptRunner(srLicense, srVersionNumber) : "Error installing SR version:" + srVersionNumber
@@ -459,7 +466,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "When running the main test as packageToRun, classToRun and methodToRun"
         log.info("Uploading main package test class")
-        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"): "Error updating main spock package file"
+        assert jira.updateScriptrunnerFile(new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalSpockTest.groovy"): "Error updating main spock package file"
         sleep(1500)//Wait for SR to detect file changes
 
         log.info("\tRunning matching package, class and method tests")
@@ -476,7 +483,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "When adding a Spock test to a sub package"
         log.info("Uploading sup package test class")
-        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"): "Error updating sub package file"
+        assert jira.updateScriptrunnerFile(new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/subPackage/JiraLocalSubSpockTest.groovy"): "Error updating sub package file"
         sleep(1500)//Wait for SR to detect file changes
 
         log.info("\tRunning the same package, class and method tests")
@@ -495,7 +502,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "Adding a failing test to the main package"
         log.info("Uploading failing test class")
-        assert jira.updateScriptrunnerFile(new File("src/tests/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
+        assert jira.updateScriptrunnerFile(new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
         sleep(1500)//Wait for SR to detect file changes
 
         log.info("\tRunning the same package, class and method tests")
