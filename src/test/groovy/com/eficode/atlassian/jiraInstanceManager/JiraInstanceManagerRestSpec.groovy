@@ -38,7 +38,7 @@ class JiraInstanceManagerRestSpec extends Specification {
     static JsmH2Deployment jsmDep = new JsmH2Deployment(baseUrl)
 
     @Shared
-    static boolean reuseContainer = false //If true and container is already setup, it will be re-used.
+    static boolean reuseContainer = true //If true and container is already setup, it will be re-used.
 
     @Shared
     static String jsmLicense = new File(System.getProperty("user.home") + "/.licenses/jira/jsm.license").text
