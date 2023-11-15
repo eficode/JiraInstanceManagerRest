@@ -8,7 +8,7 @@ class AssetFieldBean extends FieldBean {
 
     ArrayList<Long> getConfigSchemeIds() {
 
-        HttpResponse<Map> rawResponse = jiraInstance.unirest.get("/rest/assets/1.0/customfield/default/configscheme/" + numericId)
+        HttpResponse<Map> rawResponse = jiraInstance.rest.get("/rest/assets/1.0/customfield/default/configscheme/" + numericId)
                 .cookie(jiraInstance.acquireWebSudoCookies())
                 .asObject(Map)
 

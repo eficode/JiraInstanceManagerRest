@@ -100,7 +100,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
 
         expect:
-        jira1.unirest.config().getDefaultBaseUrl() != jira2.unirest.config().getDefaultBaseUrl()
+        jira1.rest.config().getDefaultBaseUrl() != jira2.rest.config().getDefaultBaseUrl()
         jira1.baseUrl != jira2.baseUrl
 
 

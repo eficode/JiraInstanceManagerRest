@@ -83,7 +83,7 @@ class FieldBean {
 
             try {
 
-                HttpResponse<ArrayList<Map>> rawResponse = jim.unirest.get("/rest/internal/2/field/$fieldId/context").asObject(new GenericType<ArrayList<Map>>() {})
+                HttpResponse<ArrayList<Map>> rawResponse = jim.rest.get("/rest/internal/2/field/$fieldId/context").asObject(new GenericType<ArrayList<Map>>() {})
 
                 assert rawResponse.status == 200 : "Error getting ConfigContext for field:" + fieldId
 
@@ -184,7 +184,7 @@ class FieldBean {
             ArrayList<FieldType> types = []
 
             try {
-                HttpResponse<Map> rawResponse = jim.unirest.get("/rest/globalconfig/1/customfieldtypes")
+                HttpResponse<Map> rawResponse = jim.rest.get("/rest/globalconfig/1/customfieldtypes")
                         .cookie(jim.acquireWebSudoCookies())
                         .asObject(new GenericType<Map>() {})
 
@@ -435,7 +435,7 @@ class FieldBean {
         assert fieldId.startsWith("customfield_"): "fieldId should start with customfield_"
 
         try {
-            HttpResponse<Map> rawResponse = jim.unirest.delete("/rest/api/2/customFields")
+            HttpResponse<Map> rawResponse = jim.rest.delete("/rest/api/2/customFields")
                     .cookie(jim.acquireWebSudoCookies())
                     .contentType("application/json")
                     .queryString(
