@@ -5,6 +5,7 @@ import com.fasterxml.jackson.annotation.JsonAlias
 import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonIgnore
+import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonSetter
 import com.fasterxml.jackson.core.type.TypeReference
@@ -17,6 +18,7 @@ import org.slf4j.LoggerFactory
 
 import java.util.regex.Matcher
 
+@JsonInclude(JsonInclude.Include.NON_NULL)
 class ScriptFieldBean {
 
     static Logger log = LoggerFactory.getLogger(FieldBean.class)
@@ -86,12 +88,11 @@ class ScriptFieldBean {
     public String searchSQL; //Used for "Database Picker" fields
 
 
-
     @JsonIgnore
     private Map<String, Object> additionalProperties = new LinkedHashMap<String, Object>();
 
     @JsonIgnore()
-    JiraInstanceManagerRest jiraInstance
+    JiraInstanceManagerRest jim
 
     @JsonAnyGetter
     public Map<String, Object> getAdditionalProperties() {
@@ -113,6 +114,7 @@ class ScriptFieldBean {
     }
 
 
+    @JsonIgnore
     static ArrayList<ScriptFieldBean> getScriptFields(JiraInstanceManagerRest jim) {
 
         Cookies cookies = jim.acquireWebSudoCookies()
@@ -122,48 +124,94 @@ class ScriptFieldBean {
         assert response.status == 200: "Error getting ScriptFields from " + jim.rest.config().defaultBaseUrl
         ArrayList<Map> rawFields = response.body
 
-        ArrayList<ScriptFieldBean> scriptFieldBeans = objectMapper.convertValue(rawFields, new TypeReference<ArrayList<ScriptFieldBean>>() {
-        })
-        scriptFieldBeans.each { it.jiraInstance = jim }
+        ArrayList<ScriptFieldBean> scriptFieldBeans = getScriptFieldBeanFromMaps(rawFields, jim)
 
         return scriptFieldBeans
     }
 
+
+    static ScriptFieldBean getScriptFieldBeanFromMap(Map map, JiraInstanceManagerRest jim){
+        return getScriptFieldBeanFromMaps([map], jim).find {true}
+    }
+
+    static ArrayList<ScriptFieldBean> getScriptFieldBeanFromMaps(ArrayList<Map> maps, JiraInstanceManagerRest jim) {
+
+        ArrayList<ScriptFieldBean> scriptFieldBeans = objectMapper.convertValue(maps, new TypeReference<ArrayList<ScriptFieldBean>>() {
+        })
+        scriptFieldBeans.each { it.jim = jim }
+
+        return scriptFieldBeans
+
+    }
+
+    @JsonIgnore
     boolean isUsingInlineScript() {
         return fieldScriptFileOrScript?.script
     }
 
+    @JsonIgnore
     boolean isUsingScriptFile() {
         return fieldScriptFileOrScript?.scriptPath
     }
 
+
+    @JsonIgnore
+    ScriptFieldBean updateScriptBody(String newBody) {
+        if (usingInlineScript) {
+            ScriptFieldBean scriptFieldBean = getScriptFields(jim).find {it.id == id}
+
+            scriptFieldBean.fieldScriptFileOrScript.script = newBody
+
+            String scriptFieldBeanJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(scriptFieldBean)
+
+            HttpResponse<Map> httpResponse = jim.rest.post("/rest/scriptrunner-jira/latest/scriptfields/com.onresolve.scriptrunner.canned.jira.fields.CustomCannedScriptField")
+            .cookie(jim.acquireWebSudoCookies())
+            .contentType("application/json")
+            .body(scriptFieldBeanJson)
+            .asObject(Map)
+
+            assert httpResponse.status == 200 : "Error updating script field ${customFieldId}, got reponse (${httpResponse?.status}):" + httpResponse?.body
+
+            ScriptFieldBean newFieldBean = getScriptFieldBeanFromMap(httpResponse.body, jim)
+
+            assert newFieldBean.fieldScriptFileOrScript.script == newBody : "Error verifying script of Scripted Field after update"
+
+            return newFieldBean
+
+        }
+
+
+        return null
+    }
+
+    @JsonIgnore
     String getScriptBody() {
 
         if (usingInlineScript) {
             return fieldScriptFileOrScript.script
         } else if (usingScriptFile) {
 
-            String body = jiraInstance.getScriptrunnerFile(fieldScriptFileOrScript?.scriptPath?.toString())
+            String body = jim.getScriptrunnerFile(fieldScriptFileOrScript?.scriptPath?.toString())
             assert body != "": "Error getting script body for script:" + fieldScriptFileOrScript?.scriptPath
 
             return body
 
-        }else if (cannedScript.endsWith("DateOfFirstTransitionScriptField")) {
+        } else if (cannedScript.endsWith("DateOfFirstTransitionScriptField")) {
             log.debug("Date oF First Transition fields dont have a script body, only transitionState parameter")
             return ""
-        }else if (cannedScript.endsWith("NoOfTimesInStatusScriptField")) {
+        } else if (cannedScript.endsWith("NoOfTimesInStatusScriptField")) {
             log.debug("No. of Times In Status fields dont have a script body, only fieldTimesInStatus parameter")
             return ""
-        }else if (cannedScript.endsWith("ParentIssueScriptField")) {
+        } else if (cannedScript.endsWith("ParentIssueScriptField")) {
             log.debug("Show parent issue in hierarchy fields dont have a script body, only fieldParentIssueExtractors and fieldTargetIssueType parameter")
             return ""
-        }else if (cannedScript.endsWith("TimeOfLastStatusChangeScriptField")) {
+        } else if (cannedScript.endsWith("TimeOfLastStatusChangeScriptField")) {
             log.debug("Time of Last Status Change fields dont have a script body")
             return ""
-        }else if (cannedScript.endsWith("DbPickerCannedField")) {
+        } else if (cannedScript.endsWith("DbPickerCannedField")) {
             log.debug("Database Picker Fields do not require Script Body")
             return ""
-        }else if (cannedScript.endsWith("IssuePickerCannedFieldConfig")) {
+        } else if (cannedScript.endsWith("IssuePickerCannedFieldConfig")) {
             log.debug("Issue Picker Fields do not require Script Body")
             return ""
         }
@@ -177,15 +225,18 @@ class ScriptFieldBean {
      * Get the last 15 executions of the script, equivalent of clicking the link in the History column in SR/Fields
      * @return
      */
+    @JsonIgnore
     ArrayList<ScriptFieldExecution> getExecutions() {
 
-        HttpResponse<ArrayList<Map>> rawResponse = jiraInstance.rest.get("/rest/scriptrunner/latest/diagnostics/results?functionId=$fieldConfigurationSchemeId").asObject(new GenericType<ArrayList<Map>>() {})
-        assert rawResponse.status == 200 : "Error getting execution history for $this"
+        HttpResponse<ArrayList<Map>> rawResponse = jim.rest.get("/rest/scriptrunner/latest/diagnostics/results?functionId=$fieldConfigurationSchemeId").asObject(new GenericType<ArrayList<Map>>() {
+        })
+        assert rawResponse.status == 200: "Error getting execution history for $this"
         ArrayList<Map> rawExecutions = rawResponse.body
         rawExecutions.each {
             it.payload = objectMapper.readValue(it.payload.toString(), new TypeReference<Map>() {})
         }
-        ArrayList<ScriptFieldExecution> executions = objectMapper.convertValue(rawExecutions, new TypeReference<ArrayList<ScriptFieldExecution>>() {})
+        ArrayList<ScriptFieldExecution> executions = objectMapper.convertValue(rawExecutions, new TypeReference<ArrayList<ScriptFieldExecution>>() {
+        })
 
 
         return executions
@@ -215,15 +266,14 @@ class ScriptFieldBean {
         private Map<String, Object> additionalProperties = new LinkedHashMap<String, Object>();
 
 
-
         @JsonSetter("payload")
-        public void setPayload(Map payloadRaw ){
+        public void setPayload(Map payloadRaw) {
             payload = payloadRaw
 
             Matcher issueKeyMatcher = payload.issue =~ /(\w+-\d+)/
             if (issueKeyMatcher.size() != 1) {
                 log.warn("Could not determine issueKeys for ScriptFieldExecution, field:" + payload.customField)
-            }else {
+            } else {
                 payload.issue = issueKeyMatcher[0][1]
             }
 
