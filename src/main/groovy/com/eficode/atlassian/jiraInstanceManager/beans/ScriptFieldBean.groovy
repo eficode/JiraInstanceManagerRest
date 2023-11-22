@@ -109,8 +109,24 @@ class ScriptFieldBean {
         fieldIsMultiple = (onOrOff == "on")
     }
 
+    @JsonIgnore
     String toString() {
         return "$name ($customFieldId)"
+    }
+
+    @JsonIgnore
+    String toJson(){
+        return objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(this)
+    }
+
+    @JsonIgnore
+    boolean isUsingInlineScript() {
+        return fieldScriptFileOrScript?.script
+    }
+
+    @JsonIgnore
+    boolean isUsingScriptFile() {
+        return fieldScriptFileOrScript?.scriptPath
     }
 
 
@@ -129,11 +145,12 @@ class ScriptFieldBean {
         return scriptFieldBeans
     }
 
-
-    static ScriptFieldBean getScriptFieldBeanFromMap(Map map, JiraInstanceManagerRest jim){
-        return getScriptFieldBeanFromMaps([map], jim).find {true}
+    @JsonIgnore
+    static ScriptFieldBean getScriptFieldBeanFromMap(Map map, JiraInstanceManagerRest jim) {
+        return getScriptFieldBeanFromMaps([map], jim).find { true }
     }
 
+    @JsonIgnore
     static ArrayList<ScriptFieldBean> getScriptFieldBeanFromMaps(ArrayList<Map> maps, JiraInstanceManagerRest jim) {
 
         ArrayList<ScriptFieldBean> scriptFieldBeans = objectMapper.convertValue(maps, new TypeReference<ArrayList<ScriptFieldBean>>() {
@@ -144,44 +161,114 @@ class ScriptFieldBean {
 
     }
 
+
+    /**
+     * A simplified method for creating a "Custom script field" with default settings
+     * @param jim The instance where the field will be created
+     * @param fieldName Name of the field
+     * @param inlineBody The script body that will be used as inline script
+     * @param template The template used by the field, default is textarea
+     * @return the new ScriptFieldBean
+     */
     @JsonIgnore
-    boolean isUsingInlineScript() {
-        return fieldScriptFileOrScript?.script
+    static ScriptFieldBean createCustomScriptField(JiraInstanceManagerRest jim, String fieldName, String inlineBody, String template = "textarea") {
+
+        log.info("Creating scripted field:" + fieldName + " in " + jim.baseUrl)
+        Map<String, Object> requestMap = [
+                "name"                       : fieldName,
+                "modelTemplate"              : template,
+                "FIELD_SCRIPT_FILE_OR_SCRIPT":
+                        [
+                                "script"    : inlineBody,
+                                "scriptPath": null
+                        ],
+                "canned-script"              : "com.onresolve.scriptrunner.canned.jira.fields.CustomCannedScriptField"
+        ]
+
+
+        HttpResponse<Map> httpResponse = jim.rest.post("/rest/scriptrunner-jira/latest/scriptfields/com.onresolve.scriptrunner.canned.jira.fields.CustomCannedScriptField")
+                .cookie(jim.acquireWebSudoCookies())
+                .contentType("application/json")
+                .body(objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(requestMap))
+                .asObject(Map)
+
+        log.debug("\tGot response:" + httpResponse.status)
+
+        assert httpResponse.status == 200 : "Error creating ScriptFiled $fieldName, got reponse (${httpResponse.status}):" + httpResponse.body.toString()
+
+        ScriptFieldBean scriptFieldBean = getScriptFieldBeanFromMap(httpResponse.body, jim)
+
+        log.info("\tCreated script filed:" + scriptFieldBean.customFieldId)
+
+
+        return scriptFieldBean
+
     }
 
-    @JsonIgnore
-    boolean isUsingScriptFile() {
-        return fieldScriptFileOrScript?.scriptPath
+    boolean deleteScriptField(boolean iAmSure) {
+
+        assert iAmSure : "You are not sure that you want to delete ${customFieldId}"
+
+        log.info("DELETING scripted field ${customFieldId}")
+
+        HttpResponse httpResponse = jim.rest.delete("/rest/scriptrunner-jira/latest/scriptfields/$id")
+                .cookie(jim.acquireWebSudoCookies())
+                .contentType("application/json")
+                .accept("application/json")
+                .asEmpty()
+
+
+        assert httpResponse.status == 204 : "Error deleting scripted field ${customFieldId}, got response ${httpResponse.status} " + httpResponse?.body?.toString()
+        log.info("\tDeleted script field:" + customFieldId)
+        return true
+
+
     }
 
 
+    /**
+     * Updates the script body (inline or file) of a scripted field
+     * Consider backing up script first
+     * @param newBody The new body of the script
+     * @return true on success
+     */
     @JsonIgnore
-    ScriptFieldBean updateScriptBody(String newBody) {
+    boolean updateScriptBody(String newBody) {
+
+        log.info("Updating script for scripted field:" + customFieldId)
+        ScriptFieldBean scriptFieldBean = getScriptFields(jim).find { it.id == id }
         if (usingInlineScript) {
-            ScriptFieldBean scriptFieldBean = getScriptFields(jim).find {it.id == id}
 
+            log.info("\tFiled uses inline script")
             scriptFieldBean.fieldScriptFileOrScript.script = newBody
+            scriptFieldBean.fieldPreviewIssue = null //Updating will break if issue no longer exists
 
             String scriptFieldBeanJson = objectMapper.writerWithDefaultPrettyPrinter().writeValueAsString(scriptFieldBean)
 
             HttpResponse<Map> httpResponse = jim.rest.post("/rest/scriptrunner-jira/latest/scriptfields/com.onresolve.scriptrunner.canned.jira.fields.CustomCannedScriptField")
-            .cookie(jim.acquireWebSudoCookies())
-            .contentType("application/json")
-            .body(scriptFieldBeanJson)
-            .asObject(Map)
+                    .cookie(jim.acquireWebSudoCookies())
+                    .contentType("application/json")
+                    .body(scriptFieldBeanJson)
+                    .asObject(Map)
 
-            assert httpResponse.status == 200 : "Error updating script field ${customFieldId}, got reponse (${httpResponse?.status}):" + httpResponse?.body
+            log.debug("\tPosted updated to JIRA, got response:" + httpResponse.status)
+
+            assert httpResponse.status == 200: "Error updating script field ${customFieldId}, got reponse (${httpResponse?.status}):" + httpResponse?.body
 
             ScriptFieldBean newFieldBean = getScriptFieldBeanFromMap(httpResponse.body, jim)
 
-            assert newFieldBean.fieldScriptFileOrScript.script == newBody : "Error verifying script of Scripted Field after update"
+            assert newFieldBean.fieldScriptFileOrScript.script == newBody: "Error verifying script of Scripted Field after update"
+            log.info("\tSuccessfully updated inline script for:" + newFieldBean.customFieldId)
 
-            return newFieldBean
+            return true
 
+        } else {
+            log.info("\tField uses script file:" + fieldScriptFileOrScript?.scriptPath?.toString())
+            assert jim.updateScriptrunnerFile(newBody, fieldScriptFileOrScript?.scriptPath?.toString()): "Error updating scriptField ${customFieldId} file:" + fieldScriptFileOrScript?.scriptPath?.toString()
+            log.info("\tSuccessfully updated script file for:" + customFieldId)
+            return true
         }
 
-
-        return null
     }
 
     @JsonIgnore

@@ -23,7 +23,15 @@ ArrayList<ScriptFieldBean> scriptFieldBeans = jim.getScriptFields()
 ArrayList<ScriptFieldBeanReport> scriptFieldsReports = scriptFieldBeans.collect { new ScriptFieldBeanReport(it) }
 double stop = System.currentTimeMillis()
 
-scriptFieldsReports.findAll {it.mayBreakIndexDueToAssets()}.collect {it.scriptFieldBean.name}.each {println(it)}
+scriptFieldsReports.findAll {it.mayBreakIndexDueToAssets()}.each {
+    File patchFile =  it.getPatchedScriptFile("SERVICE")
+    if (patchFile.text.contains("COULD NOT BE AUTOMATICALLY PATCHED FOR ASSET PROBLEMS")) {
+        println(patchFile.name)
+        patchFile.readLines()[-3..-1].each {
+            println("\t" + it)
+        }
+    }
+}
 return
 
 scriptFieldsReports.find {it.scriptFieldBean.customFieldId == 11400}.getPatchedScriptFile("SERVICE")

@@ -28,6 +28,13 @@ jim.getScriptFields().each {scriptField ->
     File scriptBodyFile = new File(backupDir, scriptField.toString() + ".groovy")
     scriptBodyFile.text = scriptField.scriptBody
     log.info("\tCreated backup:" + scriptField.name)
+
+
+    File scriptFieldJsonFile = new File(backupDir, scriptField.toString()  + " - original ScriptBean.groovy")
+    scriptFieldJsonFile.text = scriptField.toJson()
+    log.info("\tCreated backup:" + scriptField.name)
+
+
 }
 
 assert jim.getScriptFields().every{remoteField ->

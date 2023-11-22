@@ -1974,6 +1974,19 @@ final class JiraInstanceManagerRest {
 
     }
 
+
+    /**
+     * A simplified method for creating a "Custom script field" with default settings
+     * @param fieldName Name of the field
+     * @param inlineBody The script body that will be used as inline script
+     * @param template The template used by the field, default is textarea
+     * @return the new ScriptFieldBean
+     */
+    ScriptFieldBean createCustomScriptField(String fieldName, String inlineBody, String template = "textarea") {
+        ScriptFieldBean.createCustomScriptField(this, fieldName, inlineBody, template)
+    }
+
+
     /**
      * WIP
      * @param group

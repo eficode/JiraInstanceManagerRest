@@ -316,21 +316,22 @@ class ScriptFieldBeanReport {
 
     static Integer getScriptBodyLastImportIndex(String body) {
         Integer lastImport = body.split("\n").findLastIndexOf {
-            it.toString().matches(/import \w*\.\w*\..*/)
+            it.toString().trim().matches(/import \w*\.\w*\..*/)
         }
         return lastImport
     }
 
     //Try to determine the final "return" statement from script
     static String getScriptReturnStatement(String body) {
-        ArrayList<String> rows = body.split("\n")
+        ArrayList<String> rows = body.trim().split("\n")
         ArrayList<String> cleanRows = rows
         cleanRows.removeAll { it.toString().startsWith("//") || it == "" }
 
-        if (cleanRows.last().matches(/^.*return.*/) && rows.findAll {it == cleanRows.last()}.size() == 1 ) {
+        String last = cleanRows.last()
 
-            return cleanRows.last()
-        }else {
+        if (last ==~ /^.*return.*/ && rows.findAll { it == last }.size() == 1) {
+            return last
+        } else {
             return null
         }
     }
@@ -361,13 +362,50 @@ class ScriptFieldBeanReport {
     }
 
     static String getAssetPatchFooter() {
-        return  "jiraAuth.setLoggedInUser(initialUser)"
+        return "jiraAuth.setLoggedInUser(initialUser)"
+    }
+
+    String getAssetPatchedBody(String assetsServiceUser) {
+        log.info("Attempting to patch script body for ${this.scriptFieldBean.toString()}, fixing asset issues")
+
+        assert mayBreakIndexDueToAssets(): this.toString() + " does not appear to need patching for Asset issues"
+        log.debug("\tConfirmed field needs patching")
+        String returnStatement = getScriptReturnStatement(this.scriptFieldBean.scriptBody)
+
+        if (!returnStatement) {
+            log.warn("\t" + scriptFieldBean + " needs to be patched due to Assets usage, but cant be patched automatically")
+            log.warn("\t" * 2 + " Could not determine return statement for $scriptFieldBean")
+
+            return null
+
+        } else {
+            log.info("\t" + scriptFieldBean + " patching for Asset usage")
+            String scriptBody = scriptFieldBean.scriptBody
+
+            int lastImportLine = getScriptBodyLastImportIndex(scriptBody)
+
+            ArrayList<String> imports = scriptBody.split("\n").toList().subList(0,lastImportLine  + 1)
+            imports.addAll(assetPatchImports.split("\n"))
+
+
+
+            ArrayList<String> body = scriptBody.split("\n").toList()[getScriptBodyLastImportIndex(scriptBody) + 1..-1]
+            body = getAssetPatchBody(assetsServiceUser).split("\n") + body
+            String patchedScriptBody = imports.join("\n") + body.join("\n")
+            assert patchedScriptBody.count(returnStatement) == 1 : "Error patching ${scriptFieldBean.toString()}, could not determine final return statement. "
+            patchedScriptBody = patchedScriptBody.replace(returnStatement, getAssetPatchFooter() + "\n" + returnStatement)
+
+
+            return  patchedScriptBody
+
+        }
+
+
     }
 
 
-
     File getPatchedScriptFile(String assetsServiceUser) {
-    //File getPatchedScriptFile(String assetsServiceUser, @ClosureParams(value =  FirstParam) Closure<String> customPatcher = null) {
+        //File getPatchedScriptFile(String assetsServiceUser, @ClosureParams(value =  FirstParam) Closure<String> customPatcher = null) {
 
 
         log.info("Patching " + scriptFieldBean)
@@ -384,6 +422,7 @@ class ScriptFieldBeanReport {
         String patchedScriptBody = originalScriptBody
 
 
+        /*
         Map<Pattern, String> replace = [
                 (Pattern.compile(/^(.*)/, Pattern.MULTILINE)) : ""
                 //(Pattern.compile(/(.*(?<returnVar>F) =.*)/, Pattern.MULTILINE)) : ""
@@ -407,8 +446,9 @@ class ScriptFieldBeanReport {
             }
         }
 
-        //replaceAll(Pattern.compile(/^ */, Pattern.MULTILINE), "")
+         */
 
+        //replaceAll(Pattern.compile(/^ */, Pattern.MULTILINE), "")
 
 
         boolean needsAssetPatch = mayBreakIndexDueToAssets()
@@ -427,10 +467,10 @@ class ScriptFieldBeanReport {
 
                 patchedScriptBody = assetPatchImports + patchedScriptBody
                 ArrayList<String> imports = patchedScriptBody.split("\n").toList().subList(0, getScriptBodyLastImportIndex(patchedScriptBody) + 1)
-                ArrayList<String> body = patchedScriptBody.split("\n").toList()[getScriptBodyLastImportIndex(patchedScriptBody)+1..-1]
-                body = getAssetPatchBody(assetsServiceUser).split("\n")  + body
+                ArrayList<String> body = patchedScriptBody.split("\n").toList()[getScriptBodyLastImportIndex(patchedScriptBody) + 1..-1]
+                body = getAssetPatchBody(assetsServiceUser).split("\n") + body
                 patchedScriptBody = imports.join("\n") + body.join("\n")
-                patchedScriptBody = patchedScriptBody.replace(returnStatement , getAssetPatchFooter() +"\n" + returnStatement)
+                patchedScriptBody = patchedScriptBody.replace(returnStatement, getAssetPatchFooter() + "\n" + returnStatement)
 
             }
 
@@ -447,7 +487,7 @@ class ScriptFieldBeanReport {
             patchedScriptFile.text = patchedScriptBody
             log.info("\tCreated patched script file: " + patchedScriptFile.path)
             return patchedScriptFile
-        }else {
+        } else {
             log.info(scriptFieldBean.toString() + " does not need to be patched")
             return null
         }
