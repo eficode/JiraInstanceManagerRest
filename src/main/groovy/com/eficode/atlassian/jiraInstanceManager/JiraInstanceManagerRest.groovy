@@ -1,6 +1,7 @@
 package com.eficode.atlassian.jiraInstanceManager
 
 import com.eficode.atlassian.jiraInstanceManager.beans.AssetAutomationBean
+import com.eficode.atlassian.jiraInstanceManager.beans.CustomFieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.FieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueTypeBean
@@ -49,6 +50,7 @@ final class JiraInstanceManagerRest {
 
     ArrayList<FieldBean.FieldType> cached_FieldTypes = []
     ArrayList<FieldBean> cached_FieldBeans = []
+    ArrayList<CustomFieldBean> cached_CustomFieldBeans = []
     ArrayList<ProjectBean> cached_Projects = []
     ArrayList<IssueTypeBean> cached_IssueTypes = []
 
@@ -1315,6 +1317,25 @@ final class JiraInstanceManagerRest {
 
 
     /**
+     * Get all custom fields
+     * WIP: The underlying REST endpoint appears to have a bug with pagination.
+     *  Dont trust this method 100% to return all fields
+     * @param useCache returns cached fields if present and set to true
+     * @return
+     */
+    ArrayList<CustomFieldBean>getCustomFields(boolean useCache = true) {
+
+        if (useCache && cached_CustomFieldBeans) {
+            return cached_CustomFieldBeans
+        }
+
+        cached_CustomFieldBeans = CustomFieldBean.getCustomFields(this)
+
+        return cached_CustomFieldBeans
+    }
+
+
+    /**
      * Get all fields (System and Custom)
      * @param useCache If true, will return the same data as last time queried
      * @return
@@ -1973,6 +1994,19 @@ final class JiraInstanceManagerRest {
 
 
     }
+
+
+    /**
+     * A simplified method for creating a "Custom script field" with default settings
+     * @param fieldName Name of the field
+     * @param inlineBody The script body that will be used as inline script
+     * @param template The template used by the field, default is textarea
+     * @return the new ScriptFieldBean
+     */
+    ScriptFieldBean createCustomScriptField(String fieldName, String inlineBody, String template = "textarea") {
+        ScriptFieldBean.createCustomScriptField(this, fieldName, inlineBody, template)
+    }
+
 
     /**
      * WIP
