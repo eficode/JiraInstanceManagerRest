@@ -11,6 +11,8 @@ import org.slf4j.LoggerFactory
  * they are inline or file based.
  *
  * If file based the original script name wont be preserved.
+ *
+ * A JSON representation of the fields config will also be saved
  */
 
 Logger log = LoggerFactory.getLogger("script.field.backuper")
