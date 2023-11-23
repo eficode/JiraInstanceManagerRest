@@ -12,6 +12,11 @@ import org.slf4j.LoggerFactory
 import java.util.regex.Matcher
 import java.util.regex.Pattern
 
+/*
+A WIP intended to find problematic ScriptFields
+ */
+
+
 class ScriptFieldBeanReport {
 
 
