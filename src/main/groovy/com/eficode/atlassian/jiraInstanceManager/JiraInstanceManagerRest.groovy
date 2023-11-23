@@ -1,6 +1,7 @@
 package com.eficode.atlassian.jiraInstanceManager
 
 import com.eficode.atlassian.jiraInstanceManager.beans.AssetAutomationBean
+import com.eficode.atlassian.jiraInstanceManager.beans.CustomFieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.FieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueBean
 import com.eficode.atlassian.jiraInstanceManager.beans.IssueTypeBean
@@ -49,6 +50,7 @@ final class JiraInstanceManagerRest {
 
     ArrayList<FieldBean.FieldType> cached_FieldTypes = []
     ArrayList<FieldBean> cached_FieldBeans = []
+    ArrayList<CustomFieldBean> cached_CustomFieldBeans = []
     ArrayList<ProjectBean> cached_Projects = []
     ArrayList<IssueTypeBean> cached_IssueTypes = []
 
@@ -1311,6 +1313,25 @@ final class JiraInstanceManagerRest {
 
         return FieldBean.createCustomfield(this, name, searcherKey, typeKey, description, projectIds, issueTypeIds)
 
+    }
+
+
+    /**
+     * Get all custom fields
+     * WIP: The underlying REST endpoint appears to have a bug with pagination.
+     *  Dont trust this method 100% to return all fields
+     * @param useCache returns cached fields if present and set to true
+     * @return
+     */
+    ArrayList<CustomFieldBean>getCustomFields(boolean useCache = true) {
+
+        if (useCache && cached_CustomFieldBeans) {
+            return cached_CustomFieldBeans
+        }
+
+        cached_CustomFieldBeans = CustomFieldBean.getCustomFields(this)
+
+        return cached_CustomFieldBeans
     }
 
 
