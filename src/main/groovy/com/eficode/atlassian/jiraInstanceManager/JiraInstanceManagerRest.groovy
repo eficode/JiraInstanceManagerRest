@@ -885,7 +885,7 @@ final class JiraInstanceManagerRest {
 
             } catch (UnirestException ex) {
 
-                assert ex.cause.class == NoHttpResponseException || ex.cause.class == ConnectTimeoutException || ex.cause.class == HttpHostConnectException
+                assert ex.cause.class == NoHttpResponseException || ex.cause.class == ConnectTimeoutException || ex.cause.class == HttpHostConnectException || ex.cause.class == SocketException
                 log.info("---- Jira not available yet ----")
                 sleep(1000)
             }
@@ -973,7 +973,7 @@ final class JiraInstanceManagerRest {
      * @return true if JIRA got responsive before timeout was reached
      */
     boolean waitForJiraToBeResponsive(long timeOutS = 90) {
-        UnirestInstance jsmUnirest = getUnirest()
+
 
         HttpResponse<Map> response = null
 
@@ -984,7 +984,7 @@ final class JiraInstanceManagerRest {
             try {
 
 
-                response = jsmUnirest.get("/status").asObject(Map.class).ifFailure { log.warn("JIRA not yet responsive") }
+                response = rest.get("/status").asObject(Map.class).ifFailure { log.warn("JIRA not yet responsive") }
 
                 if ((start + timeOutS) < System.currentTimeSeconds()) {
                     log.error("Timed out waiting for JIRA to start after ${System.currentTimeSeconds() - start} seconds")
@@ -1001,7 +1001,7 @@ final class JiraInstanceManagerRest {
 
 
         }
-        jsmUnirest.shutDown()
+
         log.debug("\t\tJIRA started after ${System.currentTimeSeconds() - start} seconds")
         return response.body.get("state") == "RUNNING"
     }
