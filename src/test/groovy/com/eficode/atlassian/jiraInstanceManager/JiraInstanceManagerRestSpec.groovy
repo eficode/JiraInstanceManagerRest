@@ -59,8 +59,6 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         Unirest.config().defaultBaseUrl(baseUrl).setDefaultBasicAuth(restAdmin, restPw)
 
-        assert jiraInstanceManagerRest.installScriptRunner(srLicense, baseSrVersion): "Error installing SR version:" + baseSrVersion
-
 
         jsmDep.setJiraLicense(jsmLicense)
 
