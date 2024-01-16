@@ -15,24 +15,22 @@ import com.eficode.atlassian.jiraInstanceManager.beans.SrJob
 import groovy.ant.AntBuilder
 import groovy.io.FileType
 import groovy.json.JsonSlurper
-import kong.unirest.Cookie
-import kong.unirest.Cookies
-import kong.unirest.Empty
-import kong.unirest.GenericType
-import kong.unirest.GetRequest
-import kong.unirest.HttpResponse
-import kong.unirest.JsonNode
-import kong.unirest.Unirest
-import kong.unirest.UnirestException
-import kong.unirest.UnirestInstance
+import kong.unirest.core.Cookie
+import kong.unirest.core.Cookies
+import kong.unirest.core.Empty
+import kong.unirest.core.GenericType
+import kong.unirest.core.GetRequest
+import kong.unirest.core.HttpResponse
+import kong.unirest.core.JsonNode
+import kong.unirest.core.Unirest
+import kong.unirest.core.UnirestException
+import kong.unirest.core.UnirestInstance
 import org.apache.groovy.json.internal.LazyMap
-import org.codehaus.groovy.runtime.ResourceGroovyMethods
+//import org.codehaus.groovy.runtime.ResourceGroovyMethods
+import java.nio.file.Paths
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import unirest.shaded.com.google.gson.JsonObject
-import unirest.shaded.org.apache.http.NoHttpResponseException
-import unirest.shaded.org.apache.http.conn.ConnectTimeoutException
-import unirest.shaded.org.apache.http.conn.HttpHostConnectException
+
 
 import java.nio.file.StandardCopyOption
 
@@ -99,14 +97,9 @@ final class JiraInstanceManagerRest {
             existingCookies = new Cookies()
         }
 
-        response.headers.all().findAll { it.name == "Set-Cookie" }.each {
-
-            String name = it.value.split(";")[0].split("=")[0]
-            String value = it.value.split(";")[0].split("=")[1]
-
-            existingCookies.removeAll { it.name == name }
-            existingCookies.add(new Cookie(name, value))
-
+        response.cookies.each {newCookie ->
+            existingCookies.removeAll{it.name == newCookie.name}
+            existingCookies.add(newCookie)
         }
 
 
@@ -136,14 +129,13 @@ final class JiraInstanceManagerRest {
                 .asJson()
 
 
-        unirestInstance.shutDown()
+
         assert switchUserResponse.status == 200, "Error getting cookies for user " + userKey
 
         UnirestInstance verifyInstance = Unirest.spawnInstance()
         verifyInstance.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
 
         Map verifyMap = verifyInstance.get("/rest/api/2/myself").cookie(cookies).asJson().getBody().object.toMap()
-        verifyInstance.shutDown()
         assert verifyMap.get("key") == userKey
 
         log.info("\tTransform of admin to user cookies appears successfull")
@@ -158,6 +150,7 @@ final class JiraInstanceManagerRest {
      */
     Cookies acquireWebSudoCookies() {
         Map cookies = useSamlNoSso ? getCookiesFromRedirect("/secure/admin/WebSudoAuthenticate") : getCookiesFromRedirect("/login.jsp?nosso")
+
 
         Cookie xsrfCookie = cookies.cookies.find { it.name == "atlassian.xsrf.token" }
         assert xsrfCookie: "Could not get atlassian.xsrf.token-cookie needed for WebSudo"
@@ -174,7 +167,7 @@ final class JiraInstanceManagerRest {
                 .field("webSudoPassword", adminPassword).asEmpty()
 
 
-        unirestInstance.shutDown()
+
         assert webSudoResponse.status == 302, "Error acquiring Web Sudo"
         Cookies sudoCookies = webSudoResponse.cookies
         return sudoCookies
@@ -250,7 +243,7 @@ final class JiraInstanceManagerRest {
     }
 
     /**
-     * Unirest by default gets lost when several redirects return cookies, this method will retain them
+     * This method collects all cooikies supleid during a getRequest even if several 302 redirects are done
      * @param path
      * @return
      */
@@ -284,7 +277,6 @@ final class JiraInstanceManagerRest {
         }
 
 
-        unirestInstance.shutDown()
         return ["cookies": cookies, "lastResponse": getResponse]
     }
 
@@ -809,7 +801,7 @@ final class JiraInstanceManagerRest {
                 .cookie(cookies)
                 .field("setupLicenseKey", jiraLicense.replaceAll("[\n\r]", ""))
                 .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
-                .socketTimeout(4 * 60000)
+                .connectTimeout(4 * 60000)
                 .asJson()
 
         assert setupLicenceResponse.status == 302, "Error setting license"
@@ -846,7 +838,7 @@ final class JiraInstanceManagerRest {
         assert setupEmailResponse.status == 302, "Error setting up email"
         log.info("\t\tSet email successfully")
 
-        localUnirest.shutDown()
+
         return true
 
     }
@@ -885,7 +877,6 @@ final class JiraInstanceManagerRest {
 
             } catch (UnirestException ex) {
 
-                assert ex.cause.class == NoHttpResponseException || ex.cause.class == ConnectTimeoutException || ex.cause.class == HttpHostConnectException || ex.cause.class == SocketException
                 log.info("---- Jira not available yet ----")
                 sleep(1000)
             }
@@ -893,18 +884,18 @@ final class JiraInstanceManagerRest {
 
         if (System.currentTimeMillis() > startTime + 180000) {
 
-            localUnirest.shutDown()
-            throw new NoHttpResponseException("Timeout waiting for JIRA Setup dialog")
+
+            throw new SocketTimeoutException("Timeout waiting for JIRA Setup dialog")
         }
 
         log.info("Setting up local H2 database, this will take a several minutes.")
         HttpResponse setupDbResponse = localUnirest.post("/secure/SetupDatabase.jspa")
                 .field("databaseOption", "internal")
                 .field("atl_token", xsrfCookie.value)
-                .socketTimeout((8 * 60000))
+                .connectTimeout((8 * 60000))
                 .asEmpty()
 
-        localUnirest.shutDown()
+
         assert setupDbResponse.status == 302
         assert setupDbResponse.headers.getFirst("Location").endsWith("SetupApplicationProperties!default.jspa")
 
@@ -1139,7 +1130,7 @@ final class JiraInstanceManagerRest {
             createProjectResponse = rest.post("/rest/jira-importers-plugin/1.0/demo/create")
                     .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
                     .cookie(acquireWebSudoCookies())
-                    .socketTimeout(60000 * 8)
+                    .connectTimeout(60000 * 8)
                     .header("X-Atlassian-Token", "no-check")
                     .field("name", name)
                     .field("key", projectKey.toUpperCase())
@@ -1465,7 +1456,7 @@ final class JiraInstanceManagerRest {
                 )
                 .contentType("application/json")
                 .cookie(acquireWebSudoCookies())
-                .socketTimeout(60000 * 8)
+                .connectTimeout(60000 * 8)
                 .asObject(Map)
 
         assert spockResponse.status == 200: "Got unexpected HTTP Status when running Spock test"
@@ -1516,7 +1507,7 @@ final class JiraInstanceManagerRest {
                     .body(["FIELD_TEST": [testToRun], "FIELD_SCAN_PACKAGES": packageToRun])
                     .contentType("application/json")
                     .cookie(acquireWebSudoCookies())
-                    .socketTimeout(60000 * 8)
+                    .connectTimeout(60000 * 8)
                     .asJson()
 
 
@@ -1732,7 +1723,7 @@ final class JiraInstanceManagerRest {
     Map executeLocalScriptFile(String scriptContent) {
 
 
-        HttpResponse scriptResponse = rest.post("/rest/scriptrunner/latest/user/exec/").socketTimeout(4 * 60000).cookie(acquireWebSudoCookies()).contentType("application/json").body(["script": scriptContent]).asJson()
+        HttpResponse scriptResponse = rest.post("/rest/scriptrunner/latest/user/exec/").connectTimeout(4 * 60000).cookie(acquireWebSudoCookies()).contentType("application/json").body(["script": scriptContent]).asJson()
 
         Map scriptResponseJson = scriptResponse.body.getObject().toMap()
         ArrayList<String> logRows = scriptResponseJson.snapshot?.log?.split("\n")
@@ -1847,19 +1838,21 @@ final class JiraInstanceManagerRest {
         log.info("Getting ID for REST Endpoint:" + endpointName)
         Cookies cookies = acquireWebSudoCookies()
 
-        HttpResponse response = rest.get("/rest/scriptrunner/latest/custom/customadmin?").cookie(cookies).asJson()
-        List<JsonObject> endpointsRaw = response.body.getArray().toList()
-
-        log.trace("\tRaw response:")
-        endpointName.eachLine { log.trace("\t\t" + it) }
+        HttpResponse<ArrayList<Map>> response = rest.get("/rest/scriptrunner/latest/custom/customadmin?").cookie(cookies).asObject (new GenericType<ArrayList<Map>>(){})
 
 
-        Map correctEndpoint = endpointsRaw.find { it.get("endpoints").toList().any { it.name == endpointName } }?.toMap()
+
+
+
+        Map correctEndpoint = response.body.find { (it.get("endpoints") as ArrayList<Map>).any { it.name == endpointName } }
 
         return correctEndpoint?.id
 
 
     }
+
+
+
 
     /**
      * Create a new SR Scripted Rest endpoint
@@ -1952,11 +1945,11 @@ final class JiraInstanceManagerRest {
 
         Cookies cookies = acquireWebSudoCookies()
 
-        HttpResponse response = rest.get("/rest/scriptrunner/latest/resources?").cookie(cookies).asJson()
-        List<JsonObject> resourcesRaw = response.body.getArray().toList()
+        HttpResponse<ArrayList<Map>> response = rest.get("/rest/scriptrunner/latest/resources?").cookie(cookies).asObject(new GenericType<ArrayList<Map>>(){})
 
 
-        Map correctEndpoint = resourcesRaw.find { it.get("canned-script") == "com.onresolve.scriptrunner.canned.db.LocalDatabaseConnection" && it.get("poolName") == poolName }?.toMap()
+
+        Map correctEndpoint = response.body.find { it.get("canned-script") == "com.onresolve.scriptrunner.canned.db.LocalDatabaseConnection" && it.get("poolName") == poolName }
 
         return correctEndpoint?.id
 
@@ -2046,7 +2039,9 @@ final class JiraInstanceManagerRest {
         Map<String, String> filesToUpload = [:]
         sourceRoot.eachFileRecurse(FileType.FILES) { sourceFile ->
 
-            filesToUpload.put(sourceFile.absolutePath, ResourceGroovyMethods.relativePath(sourceRoot.parentFile, sourceFile))
+            String relativePath = Paths.get(sourceRoot.parentFile.toURI()).relativize(Paths.get(sourceFile.toURI()))
+
+            filesToUpload.put(sourceFile.absolutePath, relativePath)
         }
         log.info("\tGot ${filesToUpload.size()} files from JAR archive, uploading them now")
 
@@ -2127,7 +2122,7 @@ final class JiraInstanceManagerRest {
         assert unzipDir.mkdirs(): "Error creating temporary unzip dir:" + unzipDir.canonicalPath
 
         HttpResponse<File> downloadResponse = githubRest.get("$githubRepoUrl/archive/refs/heads/${branch}.zip").asFile((tempDir.canonicalPath.endsWith("/") ?: tempDir.canonicalPath + "/").toString() + "${branch}.zip")
-        githubRest.shutDown()
+
 
         File zipFile = new File(tempDir.canonicalPath, branch + ".zip")
         assert zipFile.canRead(): "Error reading downloaded zip:" + zipFile.canonicalPath

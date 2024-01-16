@@ -1,7 +1,7 @@
 package com.eficode.atlassian.jiraInstanceManager.beans
 
-import com.fasterxml.jackson.databind.ObjectMapper
-import unirest.shaded.com.google.gson.annotations.SerializedName
+import com.fasterxml.jackson.annotation.JsonProperty
+
 
 class AssetAutomationBean {
 
@@ -63,9 +63,9 @@ class AssetAutomationBean {
 
     enum ActionType {
 
-        @SerializedName("com.riadalabs.jira.plugins.insight.services.automation.action.AutomationRuleGroovyScriptAction")
+        @JsonProperty("com.riadalabs.jira.plugins.insight.services.automation.action.AutomationRuleGroovyScriptAction")
         GroovyScript("Execute Groovy script", 'com.riadalabs.jira.plugins.insight.services.automation.action.AutomationRuleGroovyScriptAction'),
-        @SerializedName("com.riadalabs.jira.plugins.insight.services.automation.action.AutomationRuleHttpRequestAction")
+        @JsonProperty("com.riadalabs.jira.plugins.insight.services.automation.action.AutomationRuleHttpRequestAction")
         HttpRequest ("Http Request", "com.riadalabs.jira.plugins.insight.services.automation.action.AutomationRuleHttpRequestAction")
 
 

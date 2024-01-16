@@ -7,9 +7,9 @@ import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.ObjectMapper
-import kong.unirest.GenericType
-import kong.unirest.HttpResponse
-import kong.unirest.UnirestInstance
+import kong.unirest.core.GenericType
+import kong.unirest.core.HttpResponse
+import kong.unirest.core.UnirestInstance
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -357,7 +357,7 @@ class FieldBean {
      */
     static ArrayList<FieldBean> getFields(JiraInstanceManagerRest jim) {
 
-        UnirestInstance unirest = jim.getUnirest()
+        UnirestInstance unirest = jim.rest
         ArrayList<FieldBean> fields
 
         try {
@@ -395,7 +395,7 @@ class FieldBean {
      */
     static FieldBean createCustomfield(JiraInstanceManagerRest jim, String name, String searcherKey, String typeKey, String description = "", ArrayList<String> projectIds = [], ArrayList<String> issueTypeIds = ["-1"]) {
 
-        UnirestInstance unirest = jim.getUnirest()
+        UnirestInstance unirest = jim.rest
 
         try {
             HttpResponse<Map> rawResponse = unirest.post("/rest/api/2/field")

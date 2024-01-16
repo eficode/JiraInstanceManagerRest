@@ -6,9 +6,7 @@ import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.ObjectMapper
-import kong.unirest.GenericType
-import kong.unirest.HttpResponse
-import kong.unirest.UnirestInstance
+import kong.unirest.core.UnirestInstance
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -54,8 +52,6 @@ class IssueTypeBean {
 
     static ArrayList<IssueTypeBean> getIssueTypes(JiraInstanceManagerRest jim) {
 
-        UnirestInstance unirest = jim.getUnirest()
-        ArrayList<FieldBean> fields
 
         try {
 

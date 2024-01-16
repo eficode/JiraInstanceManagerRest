@@ -36,19 +36,34 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-maven-
 
-      - name: Compile and install locally
+      - name: decrypt licenses
+        run: .github/buildResources/secret_licenses/decrypt_licenses.sh
+        env:
+          LICENSE_PASSWORD: ${{secrets.LICENSE_PASSWORD}}
+
+
+      - name: Compile and install main version
         run: |
           
           mkdir -p repository/com/eficode/atlassian/jirainstancemanager/
+          echo Building and installing "normal" version
+          mvn install -f pom.xml -DcreateChecksum=true 
+
+      - name: Compile and install standalone version
+        run: |
           
-          mvn help:effective-pom -P groovy-3 -Doutput=effective-pom.xml
-          mvn install -f effective-pom.xml -DcreateChecksum=true 
+          mkdir -p repository/com/eficode/atlassian/jirainstancemanager-standalone/
           
+          echo Creating pom for standalone version and installing
+          mvn gplus:execute@execute 
+           echo Building and installing "standalone" version
+          mvn install -f pom-standalone.xml -DcreateChecksum=true 
 
       - name: Copying JAR files
         run: |
           echo Copying the new JAR files to repository which will be added to git branch "packages"
           rsync -avh --checksum ~/.m2/repository/com/eficode/atlassian/jirainstancemanager/ repository/com/eficode/atlassian/jirainstancemanager/
+          rsync -avh --checksum ~/.m2/repository/com/eficode/atlassian/jirainstancemanager-standalone/ repository/com/eficode/atlassian/jirainstancemanager-standalone/
       - name: Committing and pushing JAR files
         run: |
           
@@ -72,3 +87,8 @@ jobs:
           git commit -m "Updated packages to $VERSION"
           echo Pushing changes
           git push
+          
+
+      # Optional: Uploads the full dependency graph to GitHub to improve the quality of Dependabot alerts this repository can receive
+      - name: Update dependency graph
+        uses: advanced-security/maven-dependency-submission-action@571e99aab1055c2e71a1e2309b9691de18d6b7d6

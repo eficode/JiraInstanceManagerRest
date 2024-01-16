@@ -4,9 +4,8 @@ import com.eficode.atlassian.jiraInstanceManager.JiraInstanceManagerRest
 import com.fasterxml.jackson.annotation.*
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
-import kong.unirest.GenericType
-import kong.unirest.HttpResponse
-import kong.unirest.JsonNode
+import kong.unirest.core.GenericType
+import kong.unirest.core.HttpResponse
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 

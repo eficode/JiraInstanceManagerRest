@@ -3,9 +3,9 @@ package com.eficode.atlassian.jiraInstanceManager.beans
 import com.eficode.atlassian.jiraInstanceManager.JiraInstanceManagerRest
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
-import kong.unirest.HttpResponse
-import kong.unirest.Unirest
-import kong.unirest.UnirestInstance
+import kong.unirest.core.HttpResponse
+import kong.unirest.core.Unirest
+import kong.unirest.core.UnirestInstance
 
 
 import com.fasterxml.jackson.annotation.JsonAnyGetter
@@ -15,7 +15,7 @@ import com.fasterxml.jackson.annotation.JsonInclude
 import com.fasterxml.jackson.annotation.JsonProperty
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
-import unirest.shaded.com.google.gson.annotations.SerializedName
+
 
 
 @JsonInclude(JsonInclude.Include.NON_NULL)
@@ -66,7 +66,7 @@ class MarketplaceApp {
             appsRaw += response.body?.get("_embedded")?.get("addons")
             nextPageUrl = response?.body?.get("_links")?.get("next")?.find { it.type == "application/json" }?.href as String
         }
-        mrktUnirest.shutDown()
+
 
         ArrayList<MarketplaceApp> marketplaceApps = appsRaw.collect { MarketplaceApp.fromMap(it) }
         return marketplaceApps
@@ -178,13 +178,13 @@ class MarketplaceApp {
 
     enum Hosting {
 
-        @SerializedName("any")
+        @JsonProperty("any")
         Any,
-        @SerializedName("cloud")
+        @JsonProperty("cloud")
         Cloud,
-        @SerializedName("datacenter")
+        @JsonProperty("datacenter")
         Datacenter,
-        @SerializedName("server")
+        @JsonProperty("server")
         Server
     }
 

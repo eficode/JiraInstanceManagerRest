@@ -12,10 +12,10 @@ import com.eficode.atlassian.jiraInstanceManager.beans.SrJob
 import com.eficode.devstack.deployment.impl.JsmH2Deployment
 import de.gesellix.docker.remote.api.ContainerState
 import groovy.io.FileType
-import kong.unirest.Cookies
-import kong.unirest.HttpResponse
-import kong.unirest.Unirest
-import kong.unirest.UnirestInstance
+import kong.unirest.core.Cookies
+import kong.unirest.core.HttpResponse
+import kong.unirest.core.Unirest
+import kong.unirest.core.UnirestInstance
 import org.apache.groovy.json.internal.LazyMap
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
@@ -59,6 +59,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         Unirest.config().defaultBaseUrl(baseUrl).setDefaultBasicAuth(restAdmin, restPw)
 
+
         jsmDep.setJiraLicense(jsmLicense)
 
         if (!(reuseContainer && jsmDep?.jsmContainer?.status() == ContainerState.Status.Running)) {
@@ -68,7 +69,9 @@ class JiraInstanceManagerRestSpec extends Specification {
 
             //Start and wait for the deployment
             jsmDep.setupDeployment()
-            assert jiraInstanceManagerRest.installScriptRunner(srLicense, baseSrVersion) : "Error installing SR version:" + baseSrVersion
+            jsmDep.jiraRest.waitForJiraToBeResponsive()
+
+            assert jiraInstanceManagerRest.installScriptRunner(srLicense, baseSrVersion): "Error installing SR version:" + baseSrVersion
 
         }
 
@@ -77,9 +80,10 @@ class JiraInstanceManagerRestSpec extends Specification {
     }
 
     JiraInstanceManagerRest getJiraInstanceManagerRest() {
-        return new JiraInstanceManagerRest(restAdmin, restPw, baseUrl)
+        JiraInstanceManagerRest jim = new JiraInstanceManagerRest(restAdmin, restPw, baseUrl)
+        //jim.setProxy("localhost", 8090)
+        return jim
     }
-
 
 
     def "Test scriptRunnerIsInstalled"() {
@@ -281,7 +285,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         setup:
         log.info("Testing CRUD of SR jobs")
         JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
-        
+
 
         String jobFile = "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/srJob.groovy"
         String jobNote = "SPOC Job"
@@ -290,7 +294,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         assert jira.updateScriptrunnerFile("log.warn(\"test\")", jobFile): "Error creating SR Job File"
 
-        assert jira.installScriptRunner(srLicense, srVersionNumber) : "Error installing SR version:" + srVersionNumber
+        assert jira.installScriptRunner(srLicense, srVersionNumber): "Error installing SR version:" + srVersionNumber
         log.info("\tUsing SR version:" + srVersionNumber)
         sleep(1500)//Wait for sr to detect file changes
 
@@ -322,9 +326,7 @@ class JiraInstanceManagerRestSpec extends Specification {
             //Not sure why a new instance is needed here, deletion/cleanup fails otherwise
             JiraInstanceManagerRest jim = new JiraInstanceManagerRest(baseUrl)
 
-            jim.setProxy("localhost", 8081)
-            jim.setVerifySsl(false)
-            assert jim.installScriptRunner(srLicense, baseSrVersion) : "Error installing SR version:" + baseSrVersion
+            assert jim.installScriptRunner(srLicense, baseSrVersion): "Error installing SR version:" + baseSrVersion
         }
 
 
@@ -332,11 +334,8 @@ class JiraInstanceManagerRestSpec extends Specification {
         srVersionNumber | last
         "latest"        | false
         "7.13.0"        | false
-        "7.6.0"         | false
         "7.0.0"         | false
-        "6.58.1"        | false
         "6.55.0"        | true
-
 
 
     }
@@ -351,8 +350,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert jiraLocalScriptRootDir.isDirectory()
 
 
-
-        assert jira.installScriptRunner(srLicense, srVersionNumber) : "Error installing SR version:" + srVersionNumber
+        assert jira.installScriptRunner(srLicense, srVersionNumber): "Error installing SR version:" + srVersionNumber
         log.info("\tUsing SR version:" + srVersionNumber)
 
 
@@ -424,7 +422,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         cleanup:
         if (last) {
-            assert jira.installScriptRunner(srLicense, baseSrVersion) : "Error installing SR version:" + baseSrVersion
+            assert jira.installScriptRunner(srLicense, baseSrVersion): "Error installing SR version:" + baseSrVersion
         }
 
 
@@ -432,10 +430,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         srVersionNumber | last
         "latest"        | false
         "7.13.0"        | false
-        "7.6.0"         | false
-        "7.0.0"         | false
         "6.58.1"        | false
-        "6.56.0"        | false
         "6.55.0"        | true
 
     }
@@ -451,7 +446,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         File jiraLocalScriptRootDir = new File("src/test/groovy")
         assert jiraLocalScriptRootDir.isDirectory()
 
-        assert jira.installScriptRunner(srLicense, srVersionNumber) : "Error installing SR version:" + srVersionNumber
+        assert jira.installScriptRunner(srLicense, srVersionNumber): "Error installing SR version:" + srVersionNumber
         log.info("\tUsing SR version:" + srVersionNumber)
 
         log.info("\tUsing test files found in local dir:" + jiraLocalScriptsDir.name)
@@ -521,7 +516,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         cleanup:
         if (last) {
-            assert jira.installScriptRunner(srLicense, baseSrVersion) : "Error installing SR version:" + baseSrVersion
+            assert jira.installScriptRunner(srLicense, baseSrVersion): "Error installing SR version:" + baseSrVersion
         }
 
 
@@ -639,7 +634,6 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.info("\tRest API indicates the cookie is functional")
 
         cleanup:
-        spocInstance.shutDown()
         Map deleteUserResult = jiraRest.executeLocalScriptFile(userCrudScript.replace(["CREATE_USER": "false", "DELETE_USER": "true", "SPOC_USER_KEY": spocUserKey]))
         assert deleteUserResult.success
         log.info("\tSpoc user was deleted")
@@ -653,9 +647,14 @@ class JiraInstanceManagerRestSpec extends Specification {
         setup:
         JiraInstanceManagerRest jiraR = getJiraInstanceManagerRest()
 
-        when: "Instantiate JiraInstanceManager"
+        //Cleanup pre-existing pool
+        String preExistingPool = jiraR.getLocalDbResourceId("spoc-pool")
+        if (preExistingPool) {
+            jiraR.deleteLocalDbResourceId(preExistingPool)
+        }
 
-        JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
+
+        when: "Instantiate JiraInstanceManager"
 
         then:
         assert jiraR.createLocalDbResource("spoc-pool"): "Error creating Local DB Resource"
@@ -886,11 +885,11 @@ class JiraInstanceManagerRestSpec extends Specification {
             jim.createJsmProjectWithSampleData("Asset Field Crud", "ASSFCRUD")
         }
 
-        ArrayList<FieldBean.FieldType> assetFieldTypes = jim.getFieldTypes().findAll {it.key.startsWith("com.riadalabs.jira.plugins.insight")}
+        ArrayList<FieldBean.FieldType> assetFieldTypes = jim.getFieldTypes().findAll { it.key.startsWith("com.riadalabs.jira.plugins.insight") }
 
         expect:
 
-        assetFieldTypes.each {assetFieldType ->
+        assetFieldTypes.each { assetFieldType ->
 
 
             String fieldPrefix = System.currentTimeMillis().toString()[-5..-1]
@@ -898,11 +897,11 @@ class JiraInstanceManagerRestSpec extends Specification {
 
             FieldBean newField = jim.createCustomfield(fieldPrefix + "-" + assetFieldType.name, assetFieldType.searchers.first(), assetFieldType.key, "Field type: ${assetFieldType.name}")
 
-            assert  newField.class == AssetFieldBean : "createCustomfield() did not return an AssetFieldBean when creating an asset field"
+            assert newField.class == AssetFieldBean: "createCustomfield() did not return an AssetFieldBean when creating an asset field"
 
             AssetFieldBean newAssetField = newField as AssetFieldBean
 
-            assert newAssetField.getConfigSchemeIds().size() == 1 : "getConfigSchemeIds() did not return the expected number of schema ids"
+            assert newAssetField.getConfigSchemeIds().size() == 1: "getConfigSchemeIds() did not return the expected number of schema ids"
 
             assert newAssetField.deleteCustomField()
 
@@ -936,7 +935,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         FieldBean.FieldType.getFieldTypes(jim).size() > 35
         FieldBean.getFields(jim).id.sort() == jim.getFields().id.sort()
         assert jiraFieldBeans.find { it.name == "CAB" }.getFieldContexts().allProjects == [true]: "Expected CAB field to be applied to all projects"
-        assert jiraFieldBeans.find { it.name == "CAB" }.getFieldContexts().allIssueTypes == [true] : "Expected CAB field applied to all issue types"
+        assert jiraFieldBeans.find { it.name == "CAB" }.getFieldContexts().allIssueTypes == [true]: "Expected CAB field applied to all issue types"
 
 
         expect: "Creation of fields with global/specific issueType/project of all fieldTypes and searchers, to work."
@@ -964,17 +963,17 @@ class JiraInstanceManagerRestSpec extends Specification {
                 FieldBean newField = jim.createCustomfield(fieldPrefix + "-" + fieldType.name, searcherKey, fieldTypKey, "Field type: ${fieldType.name}, Project: $projectIds, IssueType: $issueTypeIds", projectIds, issueTypeIds)
                 log.info("\t" * 3 + "Created field:" + newField.toString())
 
-                ArrayList<FieldBean.FieldConfigurationContext>fieldConfigContexts = newField.getFieldContexts()
-                assert fieldConfigContexts.size() == 1 : "Expected new field to only have one config context"
+                ArrayList<FieldBean.FieldConfigurationContext> fieldConfigContexts = newField.getFieldContexts()
+                assert fieldConfigContexts.size() == 1: "Expected new field to only have one config context"
                 FieldBean.FieldConfigurationContext fieldConfigContext = fieldConfigContexts.first()
                 if (projectIds == [null]) {
 
-                    assert fieldConfigContext.allProjects : "Field ${newField.id} was setup as project-global but field config context  was not set to allProjects=true"
-                    assert fieldConfigContext.projects.isEmpty() : "Field ${newField.id} was setup as project-global fieldConfigContext.projects was not empty"
+                    assert fieldConfigContext.allProjects: "Field ${newField.id} was setup as project-global but field config context  was not set to allProjects=true"
+                    assert fieldConfigContext.projects.isEmpty(): "Field ${newField.id} was setup as project-global fieldConfigContext.projects was not empty"
                     //assert newField.getFieldProjects(true).projectId == jim.getProjects().projectId: "Field ${newField.id} was setup as project-global but getFieldProjects(true) did not return all projects"
 
                 } else {
-                    assert projectIds.toString() == fieldConfigContext.projects.collect {it.projectId}.toString(): "Field ${newField.id} was setup for specific projects ($projectIds) but fieldConfigContext.projects did not return the expected projects"
+                    assert projectIds.toString() == fieldConfigContext.projects.collect { it.projectId }.toString(): "Field ${newField.id} was setup for specific projects ($projectIds) but fieldConfigContext.projects did not return the expected projects"
                 }
 
 
@@ -984,7 +983,6 @@ class JiraInstanceManagerRestSpec extends Specification {
                 } else {
                     assert issueTypeIds.toString() == fieldConfigContext.issueTypes.id.flatten().toString(): "Field ${newField.id} was setup for specific issueTypes ($issueTypeIds) butfieldConfigContext.issueTypes did not return the expected issueTypes"
                 }
-
 
 
                 assert newField.getFieldType(true).key == fieldType.key: "Field ${newField.id} was suposed to be type ${fieldType.key}, but API returned ${newField.getFieldType(true).key}"

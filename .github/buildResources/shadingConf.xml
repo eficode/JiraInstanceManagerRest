@@ -1,0 +1,77 @@
+<plugin>
+    <!-- Configured in pluginManagement instead of plugins, because we do not want a shaded parent POM -->
+    <groupId>org.apache.maven.plugins</groupId>
+    <artifactId>maven-shade-plugin</artifactId>
+    <version>3.5.1</version>
+    <executions>
+        <execution>
+            <phase>package</phase>
+            <goals>
+                <goal>shade</goal>
+            </goals>
+            <configuration>
+                <transformers>
+                    <transformer implementation="org.apache.maven.plugins.shade.resource.GroovyResourceTransformer">
+                        <extModuleName>the-aggregated-module</extModuleName>
+                        <extModuleVersion>1.0.0</extModuleVersion>
+                    </transformer>
+                </transformers>
+                <!-- Will output 2 jars: the original, and the shaded one -->
+                <shadedArtifactAttached>false</shadedArtifactAttached>
+
+                <!-- final name of the shaded jar will be ${project.artifactId}-standalone -->
+                <!--shadedClassifierName>standalone</shadedClassifierName-->
+
+                <filters>
+
+                    <filter>
+                        <artifact>*:*</artifact>
+                        <excludes>
+                            <exclude>META-INF/*.SF</exclude>
+                            <exclude>META-INF/*.DSA</exclude>
+                            <exclude>META-INF/*.RSA</exclude>
+                            <!--exclude>META-INF/groovy/*</exclude-->
+
+                        </excludes>
+                    </filter>
+                </filters>
+
+                <artifactSet>
+                    <!--excludes>
+                        <exclude>org.codehaus.groovy:groovy</exclude>
+                    </excludes-->
+                    <excludes>
+                        <exclude>org.junit.jupiter:*</exclude>
+                        <exclude>org.codehaus.groovy:*</exclude>
+                        <exclude>org.junit:*</exclude>
+                        <exclude>junit:*</exclude>
+                    </excludes>
+
+                </artifactSet>
+                <relocations>
+                    <relocation>
+                        <pattern>unirest</pattern>
+                        <shadedPattern>com.eficode.shaded.unirest</shadedPattern>
+                    </relocation>
+                    <relocation>
+                        <pattern>kong</pattern>
+                        <shadedPattern>com.eficode.shaded.kong</shadedPattern>
+                    </relocation>
+                    <relocation>
+                        <pattern>org.apache.commons</pattern>
+                        <shadedPattern>com.eficode.shaded.org.apache.commons</shadedPattern>
+                    </relocation>
+                </relocations>
+
+                <!-- NOTE: Any dependencies of the project will not show up in the standalone pom.
+                This means that if those dependencies are not properly relocated and there is a class-loading conflict,
+                user would not be able to figure out where the conflicting dependency is. -->
+                <createDependencyReducedPom>true</createDependencyReducedPom>
+
+                <createSourcesJar>true</createSourcesJar>
+
+
+            </configuration>
+        </execution>
+    </executions>
+</plugin>

@@ -7,9 +7,9 @@ import com.fasterxml.jackson.annotation.JsonIgnore;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.databind.ObjectMapper
-import kong.unirest.GenericType
-import kong.unirest.HttpResponse
-import kong.unirest.UnirestInstance;
+import kong.unirest.core.GenericType
+import kong.unirest.core.HttpResponse
+import kong.unirest.core.UnirestInstance;
 
 /**
  * Represents a ScriptRunenr scheduled job
@@ -68,11 +68,10 @@ class SrJob {
 
     static boolean deleteJob(JiraInstanceManagerRest jim, String jobId) {
 
-        UnirestInstance unirestInstance = jim.getUnirest()
+        UnirestInstance unirestInstance = jim.rest
 
         HttpResponse response = unirestInstance.delete("/rest/scriptrunner/latest/scheduled-jobs/" + jobId).cookie(jim.acquireWebSudoCookies()).asEmpty()
 
-        unirestInstance.shutDown()
 
        return response.status == 204
 
@@ -80,7 +79,7 @@ class SrJob {
 
     static SrJob createJob(JiraInstanceManagerRest jim, String jobNote, String userKey, String cron, String scriptPath) {
 
-        UnirestInstance unirestInstance = jim.getUnirest()
+        UnirestInstance unirestInstance = jim.rest
 
 
         HttpResponse createResponse = unirestInstance
@@ -100,12 +99,12 @@ class SrJob {
                 .asEmpty()
                 .ifFailure(Error.class, r -> {
 
-                    unirestInstance.shutDown()
+
                     throw new InputMismatchException("Error creating SR Job \"$jobNote\": " + r.body.toString())
                 })
 
         assert createResponse.status == 200: "Error creating SR Job \"$jobNote\""
-        unirestInstance.shutDown()
+
 
         ArrayList<SrJob> srJobs = getJobs(jim)
 
@@ -119,7 +118,7 @@ class SrJob {
 
     static ArrayList<SrJob> getJobs(JiraInstanceManagerRest jim) {
 
-        UnirestInstance unirestInstance = jim.getUnirest()
+        UnirestInstance unirestInstance = jim.rest
 
 
         HttpResponse<ArrayList<Map>> response = unirestInstance.get("/rest/scriptrunner/latest/scheduled-jobs?").cookie(jim.acquireWebSudoCookies()).asObject(new GenericType<ArrayList<Map>>() {
@@ -127,7 +126,6 @@ class SrJob {
 
         assert response.status == 200: "Error getting SR Jobs"
 
-        unirestInstance.shutDown()
 
         ArrayList<SrJob> jobs = response.body.collect { fromMap(it) }
 
