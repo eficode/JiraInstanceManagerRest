@@ -42,21 +42,22 @@ jobs:
           LICENSE_PASSWORD: ${{secrets.LICENSE_PASSWORD}}
 
 
-      - name: Compile and install locally
+      - name: Compile and install main version
         run: |
           
           mkdir -p repository/com/eficode/atlassian/jirainstancemanager/
-          mkdir -p repository/com/eficode/atlassian/jirainstancemanager-standalone/
-      
-          
           echo Building and installing "normal" version
           mvn install -f pom.xml -DcreateChecksum=true 
+
+      - name: Compile and install standalone version
+        run: |
+          
+          mkdir -p repository/com/eficode/atlassian/jirainstancemanager-standalone/
           
           echo Creating pom for standalone version and installing
           mvn gplus:execute@execute 
+           echo Building and installing "standalone" version
           mvn install -f pom-standalone.xml -DcreateChecksum=true 
-      
-      
 
       - name: Copying JAR files
         run: |

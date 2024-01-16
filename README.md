@@ -4,6 +4,12 @@ Jira Instance Manager Rest (JR) is a Groovy library which can perform several ad
 
 ## Breaking Changes
 
+* 2.1.0
+  * Switching to Unirest 4 might break some things if you depend on JIM supplying v4
+    * See https://github.com/Kong/unirest-java/blob/main/UPGRADE_GUIDE.md for Unirest breaking changes
+  * Due to problems with shading the standalone version is now released as a separate artifact "jirainstancemanager-standalone"
+    * The classifier standalone is no longer used
+
 * 1.1.0: 
   * Almost all static methods in JiraInstanceManagerRest have been removed in order to better facilitate working with multiple JIRA instances and in cooperation with other libraries using Unirest library.
   * Fixing the unfortunate spelling mistake "JiraInstanceManagrRest" in favor for "JiraInstanceManagerRest"
