@@ -9,47 +9,14 @@
     <version>2.1.0-SNAPSHOT</version>
     <description>A groovy library for interacting with Jira REST API.</description>
 
-    <profiles>
-        <profile>
-            <id>groovy-3</id>
-            <activation>
-                <activeByDefault>true</activeByDefault>
-            </activation>
-            <properties>
-                <maven.compiler.source>11</maven.compiler.source>
-                <maven.compiler.target>11</maven.compiler.target>
-                <groovy.major.version>3.0</groovy.major.version>
-                <groovy.version>3.0.11</groovy.version>
-                <spock-core.version>2.2-groovy-3.0</spock-core.version>
-            </properties>
-        </profile>
+    <properties>
+        <maven.compiler.source>11</maven.compiler.source>
+        <maven.compiler.target>11</maven.compiler.target>
+        <groovy.major.version>3.0</groovy.major.version>
+        <groovy.version>3.0.11</groovy.version>
+        <spock-core.version>2.2-groovy-3.0</spock-core.version>
+    </properties>
 
-        <profile>
-            <id>groovy-3.0.14</id>
-            <properties>
-                <groovy.version>3.0.14</groovy.version>
-            </properties>
-        </profile>
-        <profile>
-            <id>groovy-3.0.13</id>
-            <properties>
-                <groovy.version>3.0.13</groovy.version>
-            </properties>
-        </profile>
-        <profile>
-            <id>groovy-3.0.12</id>
-            <properties>
-                <groovy.version>3.0.12</groovy.version>
-            </properties>
-        </profile>
-        <profile>
-            <id>groovy-3.0.11</id>
-            <properties>
-                <groovy.version>3.0.11</groovy.version>
-            </properties>
-        </profile>
-
-    </profiles>
 
     <dependencyManagement>
         <dependencies>
@@ -217,92 +184,22 @@
 
         <plugins>
 
+
             <plugin>
-                <!-- Configured in pluginManagement instead of plugins, because we do not want a shaded parent POM -->
                 <groupId>org.apache.maven.plugins</groupId>
-                <artifactId>maven-shade-plugin</artifactId>
-                <version>3.5.1</version>
-                <executions>
-                    <execution>
-                        <phase>package</phase>
-                        <goals>
-                            <goal>shade</goal>
-                        </goals>
-                        <configuration>
-                            <transformers>
-                                <transformer implementation="org.apache.maven.plugins.shade.resource.GroovyResourceTransformer">
-                                    <extModuleName>the-aggregated-module</extModuleName>
-                                    <extModuleVersion>1.0.0</extModuleVersion>
-                                </transformer>
-                            </transformers>
-                            <!-- Will output 2 jars: the original, and the shaded one -->
-                            <shadedArtifactAttached>true</shadedArtifactAttached>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <excludes>
+                        <exclude>com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/**</exclude>
+                    </excludes>
+                    <includes>
+                        <include>com/eficode/atlassian/jiraInstanceManager/*</include>
+                    </includes>
+                </configuration>
 
-                            <!-- final name of the shaded jar will be ${project.artifactId}-standalone -->
-                            <shadedClassifierName>standalone</shadedClassifierName>
-
-                            <filters>
-
-                                <filter>
-                                    <artifact>*:*</artifact>
-                                    <excludes>
-                                        <exclude>META-INF/*.SF</exclude>
-                                        <exclude>META-INF/*.DSA</exclude>
-                                        <exclude>META-INF/*.RSA</exclude>
-                                        <!--exclude>META-INF/groovy/*</exclude-->
-
-                                    </excludes>
-                                </filter>
-                            </filters>
-
-                            <artifactSet>
-                                <!--excludes>
-                                    <exclude>org.codehaus.groovy:groovy</exclude>
-                                </excludes-->
-                                <excludes>
-                                    <exclude>org.junit.jupiter:*</exclude>
-                                    <exclude>org.codehaus.groovy:*</exclude>
-                                    <exclude>org.junit:*</exclude>
-                                    <exclude>junit:*</exclude>
-                                </excludes>
-
-                            </artifactSet>
-                            <relocations>
-                                <!--relocation>
-                                    <pattern>groovy</pattern>
-                                    <shadedPattern>com.eficode.shaded.groovy</shadedPattern>
-                                </relocation-->
-                                <!--relocation>
-                                    <pattern>org.codehaus</pattern>
-                                    <shadedPattern>com.eficode.shaded.org.codehaus</shadedPattern>
-                                </relocation-->
-                                <relocation>
-                                    <pattern>unirest</pattern>
-                                    <shadedPattern>com.eficode.shaded.unirest</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>kong</pattern>
-                                    <shadedPattern>com.eficode.shaded.kong</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.apache.http</pattern>
-                                    <shadedPattern>com.eficode.shaded.org.apache.http</shadedPattern>
-                                </relocation>
-                                <relocation>
-                                    <pattern>org.apache.commons</pattern>
-                                    <shadedPattern>com.eficode.shaded.org.apache.commons</shadedPattern>
-                                </relocation>
-                            </relocations>
-
-                            <!-- NOTE: Any dependencies of the project will not show up in the standalone pom.
-                            This means that if those dependencies are not properly relocated and there is a class-loading conflict,
-                            user would not be able to figure out where the conflicting dependency is. -->
-                            <createDependencyReducedPom>true</createDependencyReducedPom>
-
-                        </configuration>
-                    </execution>
-                </executions>
             </plugin>
+
 
 
             <plugin>
@@ -323,40 +220,8 @@
             <plugin>
                 <groupId>org.codehaus.gmavenplus</groupId>
                 <artifactId>gmavenplus-plugin</artifactId>
-                <version>1.13.1</version>
+                <version>3.0.2</version>
                 <executions>
-
-                    <execution>
-                        <id>add-dynamic-properties</id>
-                        <phase>initialize</phase>
-                        <goals>
-                            <goal>execute</goal>
-                        </goals>
-                        <configuration>
-                            <scripts>
-                                <script>
-                                    <![CDATA[
-                                    log.info("TEST")
-                                ]]>
-                                </script>
-                            </scripts>
-                        </configuration>
-                    </execution>
-                    <execution>
-                        <id>add-dynamic-properties-v2</id>
-                        <phase>compile</phase>
-                        <goals>
-                            <goal>execute</goal>
-                        </goals>
-                        <configuration>
-                            <scripts>
-                                <script>
-                                    log.info("TEST2")
-                            </script>
-                            </scripts>
-                        </configuration>
-                    </execution>
-
                     <execution>
                         <goals>
                             <goal>addSources</goal>
@@ -365,16 +230,26 @@
                             <goal>compileTests</goal>
                         </goals>
                     </execution>
+                    <execution>
+                        <id>execute</id>
+                        <goals>
+                            <goal>execute</goal>
+                        </goals>
+                    </execution>
                 </executions>
-
                 <dependencies>
-                    <!--dependency>
+                    <dependency>
                         <groupId>org.codehaus.groovy</groupId>
                         <artifactId>groovy</artifactId>
-                        <version>2.5.17</version>
+                        <version>${groovy.version}</version>
                         <scope>runtime</scope>
-                    </dependency-->
+                    </dependency>
                 </dependencies>
+                <configuration>
+                    <scripts>
+                        <script>${project.basedir}/.github/buildScripts/createStandalonePom.groovy</script>
+                    </scripts>
+                </configuration>
 
 
             </plugin>

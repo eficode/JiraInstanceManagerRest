@@ -40,15 +40,23 @@ jobs:
         run: |
           
           mkdir -p repository/com/eficode/atlassian/jirainstancemanager/
+          mkdir -p repository/com/eficode/atlassian/jirainstancemanager-standalone/
+      
           
-          mvn help:effective-pom -P groovy-3 -Doutput=effective-pom.xml
-          mvn install -f effective-pom.xml -DcreateChecksum=true 
+          echo Building and installing "normal" version
+          mvn install -f pom.xml -DcreateChecksum=true 
           
+          echo Creating pom for standalone version and installing
+          mvn gplus:execute@execute 
+          mvn install -f pom-standalone.xml -DcreateChecksum=true 
+      
+      
 
       - name: Copying JAR files
         run: |
           echo Copying the new JAR files to repository which will be added to git branch "packages"
           rsync -avh --checksum ~/.m2/repository/com/eficode/atlassian/jirainstancemanager/ repository/com/eficode/atlassian/jirainstancemanager/
+          rsync -avh --checksum ~/.m2/repository/com/eficode/atlassian/jirainstancemanager-standalone/ repository/com/eficode/atlassian/jirainstancemanager-standalone/
       - name: Committing and pushing JAR files
         run: |
           

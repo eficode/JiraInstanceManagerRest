@@ -876,8 +876,6 @@ final class JiraInstanceManagerRest {
 
             } catch (UnirestException ex) {
 
-                //TODO Fix
-                //assert ex.cause.class == NoHttpResponseException || ex.cause.class == ConnectTimeoutException || ex.cause.class == HttpHostConnectException || ex.cause.class == SocketException
                 log.info("---- Jira not available yet ----")
                 sleep(1000)
             }
@@ -885,8 +883,8 @@ final class JiraInstanceManagerRest {
 
         if (System.currentTimeMillis() > startTime + 180000) {
 
-            //TODO fix
-            //throw new NoHttpResponseException("Timeout waiting for JIRA Setup dialog")
+
+            throw new SocketTimeoutException("Timeout waiting for JIRA Setup dialog")
         }
 
         log.info("Setting up local H2 database, this will take a several minutes.")
