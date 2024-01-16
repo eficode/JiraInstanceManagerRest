@@ -5,7 +5,7 @@
  */
 String projectBasePath = project.basedir
 File origPom = new File(projectBasePath + "/pom.xml")
-File shadingConf = new File(projectBasePath + "/.github/buildScripts/shadingConf.xml")
+File shadingConf = new File(projectBasePath + "/.github/buildResources/shadingConf.xml")
 
 String newPomBody = origPom.text.replace("<plugins>", "<plugins>\n" + shadingConf.text)
 
