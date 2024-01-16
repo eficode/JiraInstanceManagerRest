@@ -78,7 +78,7 @@ JR packages are published to a separate branch in the JR repository called '[pac
 
 ```Groovy
 @GrabResolver(name = 'github', root = 'https://github.com/eficode/JiraInstanceManagerRest/raw/packages/repository/')
-@Grab(group = 'com.eficode.atlassian', module = 'jirainstancemanager', version = '1.1.0-SNAPSHOT')
+//@Grab(group = 'com.eficode.atlassian', module = 'jirainstancemanager', version = '1.1.0-SNAPSHOT')
 
 import com.eficode.atlassian.jiraInstanceManager.JiraInstanceManagerRest
 
