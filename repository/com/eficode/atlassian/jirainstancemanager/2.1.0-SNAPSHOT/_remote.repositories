@@ -1,0 +1,6 @@
+#NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+#Tue Jan 16 17:19:48 UTC 2024
+jirainstancemanager-2.1.0-SNAPSHOT.jar>=
+jirainstancemanager-2.1.0-SNAPSHOT.pom>=
+jirainstancemanager-2.1.0-SNAPSHOT-test-sources.jar>=
+jirainstancemanager-2.1.0-SNAPSHOT-sources.jar>=
