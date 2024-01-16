@@ -26,7 +26,8 @@ import kong.unirest.core.Unirest
 import kong.unirest.core.UnirestException
 import kong.unirest.core.UnirestInstance
 import org.apache.groovy.json.internal.LazyMap
-import org.codehaus.groovy.runtime.ResourceGroovyMethods
+//import org.codehaus.groovy.runtime.ResourceGroovyMethods
+import java.nio.file.Paths
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -2040,7 +2041,9 @@ final class JiraInstanceManagerRest {
         Map<String, String> filesToUpload = [:]
         sourceRoot.eachFileRecurse(FileType.FILES) { sourceFile ->
 
-            filesToUpload.put(sourceFile.absolutePath, ResourceGroovyMethods.relativePath(sourceRoot.parentFile, sourceFile))
+            String relativePath = Paths.get(sourceRoot.parentFile).relativize(Paths.get(sourceFile))
+
+            filesToUpload.put(sourceFile.absolutePath, relativePath)
         }
         log.info("\tGot ${filesToUpload.size()} files from JAR archive, uploading them now")
 
