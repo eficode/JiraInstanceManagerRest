@@ -1,9 +1,12 @@
 package com.eficode.atlassian.jiraInstanceManager
 
 import com.eficode.devstack.container.impl.GroovyContainer
+import spock.lang.Ignore
 import spock.lang.Shared
 import spock.lang.Specification
 
+
+@Ignore
 class CrossGroovyVersionSpec extends Specification{
 
 

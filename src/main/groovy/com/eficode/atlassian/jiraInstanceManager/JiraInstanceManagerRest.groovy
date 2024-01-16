@@ -2039,7 +2039,7 @@ final class JiraInstanceManagerRest {
         Map<String, String> filesToUpload = [:]
         sourceRoot.eachFileRecurse(FileType.FILES) { sourceFile ->
 
-            String relativePath = Paths.get(sourceRoot.parentFile).relativize(Paths.get(sourceFile))
+            String relativePath = Paths.get(sourceRoot.parentFile.toURI()).relativize(Paths.get(sourceFile.toURI()))
 
             filesToUpload.put(sourceFile.absolutePath, relativePath)
         }

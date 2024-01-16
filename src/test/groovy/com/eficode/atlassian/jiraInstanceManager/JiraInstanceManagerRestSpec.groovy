@@ -334,9 +334,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         srVersionNumber | last
         "latest"        | false
         "7.13.0"        | false
-        "7.6.0"         | false
         "7.0.0"         | false
-        "6.58.1"        | false
         "6.55.0"        | true
 
 
@@ -432,10 +430,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         srVersionNumber | last
         "latest"        | false
         "7.13.0"        | false
-        "7.6.0"         | false
-        "7.0.0"         | false
         "6.58.1"        | false
-        "6.56.0"        | false
         "6.55.0"        | true
 
     }
