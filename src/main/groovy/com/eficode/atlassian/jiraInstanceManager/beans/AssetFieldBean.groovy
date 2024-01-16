@@ -1,6 +1,6 @@
 package com.eficode.atlassian.jiraInstanceManager.beans
 
-import kong.unirest.HttpResponse
+import kong.unirest.core.HttpResponse
 
 class AssetFieldBean extends FieldBean {
 

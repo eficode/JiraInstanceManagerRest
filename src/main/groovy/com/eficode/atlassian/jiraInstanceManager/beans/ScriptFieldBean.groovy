@@ -10,9 +10,9 @@ import com.fasterxml.jackson.annotation.JsonProperty
 import com.fasterxml.jackson.annotation.JsonSetter
 import com.fasterxml.jackson.core.type.TypeReference
 import com.fasterxml.jackson.databind.ObjectMapper
-import kong.unirest.Cookies
-import kong.unirest.GenericType
-import kong.unirest.HttpResponse
+import kong.unirest.core.Cookies
+import kong.unirest.core.GenericType
+import kong.unirest.core.HttpResponse
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 

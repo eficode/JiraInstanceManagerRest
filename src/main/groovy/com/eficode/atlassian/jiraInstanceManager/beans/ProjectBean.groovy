@@ -6,7 +6,7 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.databind.ObjectMapper
-import kong.unirest.HttpResponse
+import kong.unirest.core.HttpResponse
 
 class ProjectBean {
 
