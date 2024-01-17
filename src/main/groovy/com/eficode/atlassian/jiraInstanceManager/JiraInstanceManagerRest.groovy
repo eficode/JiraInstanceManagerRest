@@ -12,6 +12,7 @@ import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ScriptFieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.SpockResult
 import com.eficode.atlassian.jiraInstanceManager.beans.SrJob
+import com.eficode.atlassian.jiraInstanceManager.concurrent.ConcurrentExecutorHelper
 import groovy.ant.AntBuilder
 import groovy.io.FileType
 import groovy.json.JsonSlurper
@@ -33,6 +34,7 @@ import org.slf4j.LoggerFactory
 
 
 import java.nio.file.StandardCopyOption
+
 
 final class JiraInstanceManagerRest {
 
@@ -1691,19 +1693,16 @@ final class JiraInstanceManagerRest {
                     }
                 }
 
+                ConcurrentExecutorHelper.executeInParallel({ state ->
+                    directoryFiles.each { subFile ->
+                        String destinationPath = destFilePath + srcFile.relativePath(subFile)
 
-                directoryFiles.each { subFile ->
+                        destinationPath = destinationPath.startsWith("/") ? destinationPath.substring(1) : destinationPath
 
-                    String destinationPath = destFilePath + srcFile.relativePath(subFile)
-
-                    destinationPath = destinationPath.startsWith("/") ? destinationPath.substring(1) : destinationPath
-
-                    log.info("\tUpdating:" + subFile.name + ", Destination: " + destinationPath)
-                    assert updateScriptrunnerFile(subFile.text, destinationPath), "Error updating " + subFile.name
-
-                }
-
-
+                        log.info("\tUpdating:" + subFile.name + ", Destination: " + destinationPath)
+                        state({-> assert updateScriptrunnerFile(subFile.text, destinationPath), "Error updating " + subFile.name})
+                    }
+                })
             } else {
                 log.info("\tUpdating:" + srcFile.name)
                 assert updateScriptrunnerFile(srcFile.text, destFilePath), "Error updating " + srcFile.name
