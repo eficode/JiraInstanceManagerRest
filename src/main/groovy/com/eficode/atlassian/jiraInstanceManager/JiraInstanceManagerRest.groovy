@@ -26,6 +26,7 @@ import kong.unirest.core.Unirest
 import kong.unirest.core.UnirestException
 import kong.unirest.core.UnirestInstance
 import org.apache.groovy.json.internal.LazyMap
+
 //import org.codehaus.groovy.runtime.ResourceGroovyMethods
 import java.nio.file.Paths
 import org.slf4j.Logger
@@ -37,13 +38,15 @@ import java.nio.file.StandardCopyOption
 final class JiraInstanceManagerRest {
 
     static Logger log = LoggerFactory.getLogger(JiraInstanceManagerRest.class)
-    public UnirestInstance rest = Unirest.spawnInstance()
+    public UnirestInstance rest
     public String baseUrl
     Cookies cookies
     public String adminUsername = "admin"
     public String adminPassword = "admin"
     public boolean useSamlNoSso = false //Not tested
     private boolean verifySsl = true
+    private String proxyhost
+    private Integer proxyPort
 
 
     ArrayList<FieldBean.FieldType> cached_FieldTypes = []
@@ -59,7 +62,7 @@ final class JiraInstanceManagerRest {
      */
     JiraInstanceManagerRest(String BaseUrl) {
         baseUrl = BaseUrl
-        rest.config().defaultBaseUrl(BaseUrl).setDefaultBasicAuth(adminUsername, adminPassword)
+        rest = getUnirestInstance(true)
 
     }
 
@@ -73,20 +76,23 @@ final class JiraInstanceManagerRest {
         baseUrl = BaseUrl
         adminUsername = username
         adminPassword = password
-        rest.config().defaultBaseUrl(baseUrl).setDefaultBasicAuth(adminUsername, adminPassword)
+        rest = getUnirestInstance(true)
 
     }
 
 
     void setProxy(String proxyUrl, int proxyPort) {
 
-        rest.config().proxy(proxyUrl, proxyPort)
+        this.proxyhost = proxyUrl
+        this.proxyPort = proxyPort
+        rest = getUnirestInstance()
+
 
     }
 
     void setVerifySsl(boolean verify) {
         verifySsl = verify
-        rest.config().verifySsl(verifySsl)
+        rest = getUnirestInstance()
     }
 
     /** --- REST Backend --- **/
@@ -97,8 +103,8 @@ final class JiraInstanceManagerRest {
             existingCookies = new Cookies()
         }
 
-        response.cookies.each {newCookie ->
-            existingCookies.removeAll{it.name == newCookie.name}
+        response.cookies.each { newCookie ->
+            existingCookies.removeAll { it.name == newCookie.name }
             existingCookies.add(newCookie)
         }
 
@@ -120,8 +126,7 @@ final class JiraInstanceManagerRest {
         log.info("\tAquired admin cookies needed for user switch:" + cookies)
         log.info("\tTransforming admin cookies in to user cookies")
 
-        UnirestInstance unirestInstance = Unirest.spawnInstance()
-        unirestInstance.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
+
         HttpResponse switchUserResponse = rest.post("/rest/scriptrunner/latest/canned/com.onresolve.scriptrunner.canned.jira.admin.SwitchUser")
                 .body(["FIELD_USER_ID": userKey, "canned-script": "com.onresolve.scriptrunner.canned.jira.admin.SwitchUser"])
                 .contentType("application/json")
@@ -129,11 +134,9 @@ final class JiraInstanceManagerRest {
                 .asJson()
 
 
-
         assert switchUserResponse.status == 200, "Error getting cookies for user " + userKey
 
-        UnirestInstance verifyInstance = Unirest.spawnInstance()
-        verifyInstance.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
+        UnirestInstance verifyInstance = getUnirestInstance(false)
 
         Map verifyMap = verifyInstance.get("/rest/api/2/myself").cookie(cookies).asJson().getBody().object.toMap()
         assert verifyMap.get("key") == userKey
@@ -155,17 +158,14 @@ final class JiraInstanceManagerRest {
         Cookie xsrfCookie = cookies.cookies.find { it.name == "atlassian.xsrf.token" }
         assert xsrfCookie: "Could not get atlassian.xsrf.token-cookie needed for WebSudo"
 
-        UnirestInstance unirestInstance = Unirest.spawnInstance()
-        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl).verifySsl(verifySsl)
-        if (rest.config().proxy?.host) {
-            unirestInstance.config().proxy(rest.config().proxy.host, rest.config().proxy.port)
-        }
+        UnirestInstance unirestInstance = getUnirestInstance(false)
+        unirestInstance.config().followRedirects(false)
+
 
         HttpResponse webSudoResponse = unirestInstance.post("/secure/admin/WebSudoAuthenticate.jspa")
                 .cookie(cookies.cookies)
                 .field("atl_token", xsrfCookie.value)
                 .field("webSudoPassword", adminPassword).asEmpty()
-
 
 
         assert webSudoResponse.status == 302, "Error acquiring Web Sudo"
@@ -249,16 +249,13 @@ final class JiraInstanceManagerRest {
      */
     Map getCookiesFromRedirect(String path, String username = adminUsername, String password = adminPassword, Map headers = [:]) {
 
-        UnirestInstance unirestInstance = Unirest.spawnInstance()
-        unirestInstance.config().followRedirects(false).defaultBaseUrl(baseUrl).verifySsl(verifySsl)
+        UnirestInstance unirestInstance = getUnirestInstance(false)
+        unirestInstance.config().followRedirects(false)
 
         Cookies cookies = new Cookies()
         GetRequest getRequest = unirestInstance.get(path).headers(headers)
         if (username && password) {
             getRequest.basicAuth(username, password)
-        }
-        if (rest.config().proxy?.host) {
-            unirestInstance.config().proxy(rest.config().proxy.host, rest.config().proxy.port)
         }
 
 
@@ -299,7 +296,7 @@ final class JiraInstanceManagerRest {
                 .field("rollOver", logRollover.toString())
                 .field("mark", "Mark").asEmpty()
 
-        String location = response.getHeaders().get("Location").find {true}
+        String location = response.getHeaders().get("Location").find { true }
         return response.status == 302 && location == "ViewLogging.jspa"
 
     }
@@ -776,33 +773,66 @@ final class JiraInstanceManagerRest {
         Map redirectResponse = getCookiesFromRedirect("/")
         cookies = redirectResponse.cookies
 
-        UnirestInstance localUnirest = Unirest.spawnInstance()
-        localUnirest.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
+        UnirestInstance localUnirest = getUnirestInstance(false)
+        localUnirest.config().defaultBaseUrl(baseUrl).followRedirects(false)
         String setupAppPropertiesUrl = "/secure/SetupApplicationProperties.jspa"
-        HttpResponse setAppProperties = localUnirest.post(setupAppPropertiesUrl)
-                .cookie(cookies)
-                .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
-                .field("title", appTitle)
-                .field("mode", "private")
-                .field("baseURL", baseUrl)
-                .field("nextStep", "true")
-                .asString()
+
+        Integer failedRequests = 0
+        Integer maxFailedAttempts = 3
+
+        HttpResponse setAppProperties = null
+        while (failedRequests < maxFailedAttempts ) {
+
+
+            try {
+                setAppProperties = localUnirest.post(setupAppPropertiesUrl)
+                        .cookie(cookies)
+                        .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
+                        .field("title", appTitle)
+                        .field("mode", "private")
+                        .field("baseURL", baseUrl)
+                        .field("nextStep", "true")
+                        .asString()
+                assert setAppProperties.status == 302, "Error setting Application properties"
+                break
+            } catch (Throwable ignored) {
+                failedRequests++
+                log.warn("Error setting JIRA application properties, attempt nr ${failedRequests}")
+                sleep(5000)
+            }
+        }
 
         assert setAppProperties.status == 302, "Error setting Application properties"
         log.info("\t\tSet title, mode and baseUrl successfully")
+
 
         log.info("Setting JIRA license, this will take a few minutes")
 
 
         String setLicenseUrl = "/secure/SetupLicense.jspa"
 
+        failedRequests = 0
 
-        HttpResponse setupLicenceResponse = localUnirest.post(setLicenseUrl)
-                .cookie(cookies)
-                .field("setupLicenseKey", jiraLicense.replaceAll("[\n\r]", ""))
-                .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
-                .connectTimeout(4 * 60000)
-                .asJson()
+        HttpResponse setupLicenceResponse = null
+        while (failedRequests < maxFailedAttempts) {
+
+            try {
+                setupLicenceResponse = localUnirest.post(setLicenseUrl)
+                        .cookie(cookies)
+                        .field("setupLicenseKey", jiraLicense.replaceAll("[\n\r]", ""))
+                        .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
+                        .connectTimeout(4 * 60000)
+                        .asJson()
+
+                assert setupLicenceResponse.status == 302, "Error setting license"
+                break
+            } catch (Throwable ignored) {
+                failedRequests++
+                log.warn("Error setting JIRA License, attempt nr ${failedRequests}")
+                sleep(5000)
+            }
+        }
+
 
         assert setupLicenceResponse.status == 302, "Error setting license"
         log.info("\t\tSet license successfully")
@@ -853,8 +883,9 @@ final class JiraInstanceManagerRest {
 
         log.info("Setting up a blank H2 database for JIRA")
         long startTime = System.currentTimeMillis()
-        UnirestInstance localUnirest = Unirest.spawnInstance()
-        localUnirest.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
+        UnirestInstance localUnirest = getUnirestInstance(false)
+
+
         Cookie xsrfCookie = null
 
         while (startTime + (3 * 60000) > System.currentTimeMillis()) {
@@ -889,15 +920,26 @@ final class JiraInstanceManagerRest {
         }
 
         log.info("Setting up local H2 database, this will take a several minutes.")
-        HttpResponse setupDbResponse = localUnirest.post("/secure/SetupDatabase.jspa")
-                .field("databaseOption", "internal")
-                .field("atl_token", xsrfCookie.value)
-                .connectTimeout((8 * 60000))
-                .asEmpty()
+        HttpResponse setupDbResponse = null
+        try {
+            setupDbResponse = localUnirest.post("/secure/SetupDatabase.jspa")
+                    .field("databaseOption", "internal")
+                    .field("atl_token", xsrfCookie.value)
+                    .connectTimeout((8 * 60000))
+                    .asString()
+        } catch (Throwable ex) {
+
+            log.warn("\tJIRA returned unexpected response (${setupDbResponse?.status}) during H2DB setup, waiting to se if JIRA becomes responsive")
+            if (setupDbResponse?.body) {
+                log.warn("\t" * 2 + setupDbResponse?.body?.toString()?.take(15) + "...")
+            }
+
+            assert waitForJiraToBeResponsive(4 * 60): "Timed out waiting for JIRA to become responsive after H2DB setup"
+
+        }
 
 
-        assert setupDbResponse.status == 302
-        assert setupDbResponse.headers.getFirst("Location").endsWith("SetupApplicationProperties!default.jspa")
+        assert localUnirest.get("/secure/SetupApplicationProperties!default.jspa").asEmpty().status == 200: "Error setting up H2DB database"
 
         log.info("\tLocal database setup")
         return true
@@ -969,13 +1011,17 @@ final class JiraInstanceManagerRest {
         HttpResponse<Map> response = null
 
         log.info("\tWaiting for JIRA to become responsive")
+        UnirestInstance unirest = getUnirestInstance(false)
         long start = System.currentTimeSeconds()
-        while (response == null || response.body?.get("state") != "RUNNING") {
+        while (response == null || !(response.body?.get("state")?.toString() in ["RUNNING", "FIRST_RUN"])) {
 
             try {
 
 
-                response = rest.get("/status").asObject(Map.class).ifFailure { log.warn("JIRA not yet responsive") }
+                response = unirest.get("/status").asObject(Map.class).ifFailure {
+                    log.warn("JIRA not yet responsive")
+                    sleep(2000)
+                }
 
                 if ((start + timeOutS) < System.currentTimeSeconds()) {
                     log.error("Timed out waiting for JIRA to start after ${System.currentTimeSeconds() - start} seconds")
@@ -986,15 +1032,37 @@ final class JiraInstanceManagerRest {
                 sleep(2000)
             }
 
-            if (!response || response.status != 200) {
+
+        }
+
+        log.debug("\t\tJIRA Status started reporting ready after after ${System.currentTimeSeconds() - start} seconds")
+
+
+        HttpResponse<String> guiResponse = null
+        while (guiResponse == null || guiResponse.status >= 400 || !guiResponse.body) {
+
+            try {
+
+
+                guiResponse = unirest.get("/").asString().ifFailure {
+                    log.warn("JIRA returned status ${response.body?.get("state")} but GUI is not yet responsive")
+                    sleep(2000)
+                }
+
+                if ((start + timeOutS) < System.currentTimeSeconds()) {
+                    log.error("Timed out waiting for JIRA GUI to start after ${System.currentTimeSeconds() - start} seconds")
+                    return false
+                }
+            } catch (Throwable ignored) {
                 sleep(2000)
             }
 
 
         }
 
+
         log.debug("\t\tJIRA started after ${System.currentTimeSeconds() - start} seconds")
-        return response.body.get("state") == "RUNNING"
+        return response.body.get("state").toString() in ["RUNNING", "FIRST_RUN"] && guiResponse.status < 400
     }
 
     /**
@@ -1314,7 +1382,7 @@ final class JiraInstanceManagerRest {
      * @param useCache returns cached fields if present and set to true
      * @return
      */
-    ArrayList<CustomFieldBean>getCustomFields(boolean useCache = true) {
+    ArrayList<CustomFieldBean> getCustomFields(boolean useCache = true) {
 
         if (useCache && cached_CustomFieldBeans) {
             return cached_CustomFieldBeans
@@ -1838,10 +1906,8 @@ final class JiraInstanceManagerRest {
         log.info("Getting ID for REST Endpoint:" + endpointName)
         Cookies cookies = acquireWebSudoCookies()
 
-        HttpResponse<ArrayList<Map>> response = rest.get("/rest/scriptrunner/latest/custom/customadmin?").cookie(cookies).asObject (new GenericType<ArrayList<Map>>(){})
-
-
-
+        HttpResponse<ArrayList<Map>> response = rest.get("/rest/scriptrunner/latest/custom/customadmin?").cookie(cookies).asObject(new GenericType<ArrayList<Map>>() {
+        })
 
 
         Map correctEndpoint = response.body.find { (it.get("endpoints") as ArrayList<Map>).any { it.name == endpointName } }
@@ -1850,8 +1916,6 @@ final class JiraInstanceManagerRest {
 
 
     }
-
-
 
 
     /**
@@ -1945,8 +2009,8 @@ final class JiraInstanceManagerRest {
 
         Cookies cookies = acquireWebSudoCookies()
 
-        HttpResponse<ArrayList<Map>> response = rest.get("/rest/scriptrunner/latest/resources?").cookie(cookies).asObject(new GenericType<ArrayList<Map>>(){})
-
+        HttpResponse<ArrayList<Map>> response = rest.get("/rest/scriptrunner/latest/resources?").cookie(cookies).asObject(new GenericType<ArrayList<Map>>() {
+        })
 
 
         Map correctEndpoint = response.body.find { it.get("canned-script") == "com.onresolve.scriptrunner.canned.db.LocalDatabaseConnection" && it.get("poolName") == poolName }
@@ -2159,6 +2223,23 @@ final class JiraInstanceManagerRest {
         assert response.status == 200: "Error getting userKey"
         return response.body.getObject().toMap().key
 
+    }
+
+    UnirestInstance getUnirestInstance(boolean withBasicAuth = true) {
+        UnirestInstance unirestInstance = Unirest.spawnInstance()
+        unirestInstance.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
+
+        if (proxyPort && proxyhost) {
+            unirestInstance.config().proxy(proxyhost, proxyPort)
+        }
+
+
+        if (withBasicAuth) {
+            unirestInstance.config().setDefaultBasicAuth(adminUsername, adminPassword)
+        }
+
+
+        return unirestInstance
     }
 
 
