@@ -56,7 +56,7 @@ jobs:
           
           echo Creating pom for standalone version and installing
           mvn gplus:execute@execute 
-           echo Building and installing "standalone" version
+          echo Building and installing "standalone" version
           mvn install -f pom-standalone.xml -DcreateChecksum=true 
 
       - name: Copying JAR files

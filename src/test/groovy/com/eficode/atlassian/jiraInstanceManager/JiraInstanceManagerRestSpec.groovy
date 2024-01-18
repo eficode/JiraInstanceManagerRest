@@ -61,6 +61,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
 
         jsmDep.setJiraLicense(jsmLicense)
+        jsmDep.appsToInstall.put(MarketplaceApp.getScriptRunnerVersion(baseSrVersion).getDownloadUrl(), srLicense)
 
         if (!(reuseContainer && jsmDep?.jsmContainer?.status() == ContainerState.Status.Running)) {
 

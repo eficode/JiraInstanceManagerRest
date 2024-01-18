@@ -35,9 +35,11 @@ public class SpockEvent {
 
         if (testExecutionResult?.throwable?.stackTrace) {
             ArrayList<Map>stackTraces = testExecutionResult?.throwable?.stackTrace as ArrayList<Map>
-            out += "\n\t" + testExecutionResult.throwable.message.replace("\n", "") + "\n"
+            String throwableMessage = testExecutionResult.throwable.message
+            if(throwableMessage) {
+                out += "\n\t" + throwableMessage.replace("\n", "") + "\n"
+            }
 
-            //at com.eficode.atlassian.jiraInstanceManager.JiraInstanceManagerRestSpec.Test runSpockTest(JiraInstanceManagerRestSpec.groovy:230)
 
             stackTraces.each {
                 out += "\t"*2 + "at ${it.className}.${it.methodName}(" + it.fileName + ":" + it.lineNumber + ")"

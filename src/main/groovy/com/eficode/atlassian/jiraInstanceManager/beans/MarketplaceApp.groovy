@@ -130,16 +130,24 @@ class MarketplaceApp {
     }
 
 
+    static Version getScriptRunnerVersion(String version = "latest", Boolean dc = true) {
+
+
+        MarketplaceApp srMarketApp = searchMarketplace("Adaptavist ScriptRunner for JIRA", dc ? Hosting.Datacenter : Hosting.Server).find { it.key == "com.onresolve.jira.groovy.groovyrunner" }
+        Version srVersion = srMarketApp?.getVersion(version, Hosting.Datacenter)
+
+        return srVersion
+    }
+
     static JiraApp installScriptRunner(JiraInstanceManagerRest jim, String srLicense, String versionNr = "latest") {
 
         log.info("Installing SR version:" + versionNr)
 
         JiraApp srJiraApp = jim.getInstalledApps().find { it.key == "com.onresolve.jira.groovy.groovyrunner" }
-        MarketplaceApp srMarketApp = jim.searchMarketplace("Adaptavist ScriptRunner for JIRA", Hosting.Datacenter).find { it.key == "com.onresolve.jira.groovy.groovyrunner" }
-        assert srMarketApp: "Error finding SR in marketplace"
-        Version versionToInstall = srMarketApp?.getVersion(versionNr, Hosting.Datacenter)
+        Version versionToInstall = getScriptRunnerVersion(versionNr, true)
         assert versionToInstall: "Error finding SR version $versionNr in marketplace"
         versionNr != "latest" ?: log.info("\tDetermined latest version to be:" + versionToInstall.name)
+
 
 
         if (srJiraApp && srJiraApp.version == versionToInstall.name) {
@@ -152,10 +160,10 @@ class MarketplaceApp {
         }
 
 
-        assert jim.installApp(srMarketApp, Hosting.Datacenter, versionNr, srLicense): "Error installing SR version $versionNr"
+        assert  jim.installApp(versionToInstall, srLicense): "Error installing SR version $versionNr"
 
         srJiraApp = jim.getInstalledApps().find { it.key == "com.onresolve.jira.groovy.groovyrunner" }
-        assert srJiraApp.version == versionNr || (versionNr == "latest" && srJiraApp.version == srMarketApp.getVersion("latest", Hosting.Datacenter).name)
+        assert srJiraApp.version == versionNr || (versionNr == "latest" && srJiraApp.version == versionToInstall.name)
 
         return srJiraApp
     }
