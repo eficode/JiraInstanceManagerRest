@@ -24,7 +24,7 @@ class AssetAutomationBean {
 
 
 
-    class ConditionsAndActions {
+    static class ConditionsAndActions {
 
         public int id
         public String name
@@ -33,7 +33,7 @@ class AssetAutomationBean {
 
     }
 
-    class Action {
+    static class Action {
 
         public int id
         public String name
@@ -44,7 +44,7 @@ class AssetAutomationBean {
 
 
     }
-    class Condition {
+    static class Condition {
 
         public int id
         public String name
@@ -52,7 +52,7 @@ class AssetAutomationBean {
 
     }
 
-    class Event {
+    static class Event {
         public Integer id
         public String name
         public EventType typeId
@@ -61,7 +61,7 @@ class AssetAutomationBean {
 
     }
 
-    enum ActionType {
+    static enum ActionType {
 
         @JsonProperty("com.riadalabs.jira.plugins.insight.services.automation.action.AutomationRuleGroovyScriptAction")
         GroovyScript("Execute Groovy script", 'com.riadalabs.jira.plugins.insight.services.automation.action.AutomationRuleGroovyScriptAction'),
@@ -79,7 +79,7 @@ class AssetAutomationBean {
 
     }
 
-    enum EventType {
+    static enum EventType {
         InsightObjectAttachmentAddedEvent,
         InsightObjectAttachmentDeletedEvent,
         InsightObjectCommentAddedEvent,

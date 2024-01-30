@@ -610,11 +610,12 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         log.info("\tCreating spoc user:" + spocUsername)
 
+        String scriptBody = userCrudScript.replace(["CREATE_USER": "true", "DELETE_USER": "false", "USERNAME_INPUT": spocUsername])
 
-        Map createUserResult = jiraRest.executeLocalScriptFile(userCrudScript.replace(["CREATE_USER": "true", "DELETE_USER": "false", "USERNAME_INPUT": spocUsername]))
+        Map createUserResult = jiraRest.executeLocalScriptFile(scriptBody)
         assert createUserResult.success
-        spocUserKey = createUserResult.log.last().replaceFirst(".*Created user with key:", "")
-        assert spocUserKey: "Error getting user key for spoc user with name $spocUsername, should be in log line:" + createUserResult.log.last()
+        spocUserKey = jiraRest.getUserKey(spocUsername)
+        assert spocUserKey: "Error getting user key for spoc user with name $spocUsername"
 
         when: "Getting user cookies"
         log.info("\tGetting cookies for user:" + spocUserKey)
@@ -752,8 +753,9 @@ class JiraInstanceManagerRestSpec extends Specification {
         JiraInstanceManagerRest jira = new JiraInstanceManagerRest(baseUrl)
         jira.acquireWebSudoCookies()
 
-        String projectName = "Spoc Src FieldSchema"
         String projectKey = jira.getAvailableProjectKey("SSS")
+        String projectName = "Spoc Src FieldSchema " + projectKey
+
 
         ArrayList<Integer> preExistingSchemaIds = jira.getInsightSchemas().id
 
