@@ -575,6 +575,10 @@ final class JiraInstanceManagerRest {
 
         Cookies cookies = acquireWebSudoCookies()
         HttpResponse<AssetAutomationBean> response = rest.post("/rest/insight/1.0/automation/rule").cookie(cookies).header("Content-Type", "application/json").body(postBody).asObject(AssetAutomationBean.class)
+        if(response.status != 200) {
+            log.error("Sent body: ${postBody}")
+            log.error("Error creating Asset Automation: ${response.status} - ${response.mapError(String.class)}")
+        }
         assert response.status == 200: "Error creationg Asset Automation"
 
 
