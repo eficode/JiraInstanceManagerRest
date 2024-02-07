@@ -1,7 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <project xmlns="http://maven.apache.org/POM/4.0.0"
-         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
-         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
+    xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+    xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 http://maven.apache.org/xsd/maven-4.0.0.xsd">
     <modelVersion>4.0.0</modelVersion>
 
     <groupId>com.eficode.atlassian</groupId>
@@ -12,9 +12,8 @@
     <properties>
         <maven.compiler.source>11</maven.compiler.source>
         <maven.compiler.target>11</maven.compiler.target>
-        <groovy.major.version>3.0</groovy.major.version>
-        <groovy.version>3.0.11</groovy.version>
-        <spock-core.version>2.2-groovy-3.0</spock-core.version>
+        <groovy.version>4.0.18</groovy.version>
+        <spock-core.version>2.3-groovy-4.0</spock-core.version>
     </properties>
 
     <dependencyManagement>
@@ -50,7 +49,7 @@
         <dependency>
             <groupId>com.eficode</groupId>
             <artifactId>devstack-standalone</artifactId>
-            <version>2.3.12-SNAPSHOT</version>
+            <version>2.3.14-SNAPSHOT</version>
             <scope>test</scope>
         </dependency>
 
@@ -62,9 +61,9 @@
             <scope>test</scope>
         </dependency>
         <dependency>
-            <groupId>org.codehaus.groovy</groupId>
+            <groupId>org.apache.groovy</groupId>
             <artifactId>groovy-json</artifactId>
-            <version>3.0.20</version>
+            <version>4.0.8</version>
         </dependency>
         <dependency>
             <groupId>net.lingala.zip4j</groupId>
@@ -78,18 +77,6 @@
             <artifactId>spock-core</artifactId>
             <version>${spock-core.version}</version>
             <scope>test</scope>
-        </dependency>
-
-        <dependency>
-            <groupId>com.fasterxml.jackson.core</groupId>
-            <artifactId>jackson-databind</artifactId>
-            <version>2.14.0</version>
-        </dependency>
-
-        <dependency>
-            <groupId>org.reflections</groupId>
-            <artifactId>reflections</artifactId>
-            <version>0.10.2</version>
         </dependency>
     </dependencies>
 
@@ -114,7 +101,6 @@
 
 
     <build>
-
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
@@ -123,10 +109,6 @@
         </resources>
 
         <plugins>
-
-         
-
-
             <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-source-plugin</artifactId>
@@ -151,49 +133,33 @@
                         <goals>
                             <goal>addSources</goal>
                             <goal>addTestSources</goal>
+                            <goal>generateStubs</goal>
                             <goal>compile</goal>
                             <goal>compileTests</goal>
                         </goals>
                     </execution>
-                    <execution>
-                        <id>execute</id>
-                        <goals>
-                            <goal>execute</goal>
-                        </goals>
-                    </execution>
                 </executions>
-                <dependencies>
-                    <dependency>
-                        <groupId>org.codehaus.groovy</groupId>
-                        <artifactId>groovy</artifactId>
-                        <version>${groovy.version}</version>
-                        <scope>runtime</scope>
-                    </dependency>
-                </dependencies>
                 <configuration>
                     <scripts>
                         <script>${project.basedir}/.github/buildResources/createStandalonePom.groovy</script>
                     </scripts>
                 </configuration>
-
-
             </plugin>
             <plugin>
-             <groupId>org.apache.maven.plugins</groupId>
-             <artifactId>maven-surefire-plugin</artifactId>
-             <version>3.2.5</version>
-             <configuration>
-                 <includes>
-                     <!-- By default only files ending in 'Test' will be included, so also include support for Spock style naming convention -->
-                     <!-- Oddly enough for Groovy files, *Spec.groovy does not work, but *Spec.java does -->
-                     <include>**/*Test.java</include>
-                     <include>**/*Spec.java</include>
-                 </includes>
-             </configuration>
-           </plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.5</version>
+                <configuration>
+                    <includes>
+                        <!-- By default only files ending in 'Test' will be included, so also
+                        include support for Spock style naming convention -->
+                        <!-- Oddly enough for Groovy files, *Spec.groovy does not work, but
+                        *Spec.java does -->
+                        <include>**/*Test.java</include>
+                        <include>**/*Spec.java</include>
+                    </includes>
+                </configuration>
+            </plugin>
         </plugins>
     </build>
-
-
-
 </project>
