@@ -46,10 +46,11 @@
             <artifactId>unirest-objectmapper-jackson</artifactId>
         </dependency>
 
+
         <dependency>
             <groupId>com.eficode</groupId>
             <artifactId>devstack-standalone</artifactId>
-            <version>2.3.14-SNAPSHOT</version>
+            <version>2.3.13</version>
             <scope>test</scope>
         </dependency>
 
