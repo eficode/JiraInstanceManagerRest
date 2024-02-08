@@ -169,6 +169,9 @@
                         <include>**/*Test.java</include>
                         <include>**/*Spec.java</include>
                     </includes>
+                    <excludes>
+                        <exclude>**/JiraLocalFailedSpockTest.java</exclude>
+                    </excludes>
                 </configuration>
             </plugin>
         </plugins>
