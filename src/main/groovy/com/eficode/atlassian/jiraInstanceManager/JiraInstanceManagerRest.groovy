@@ -27,6 +27,7 @@ import kong.unirest.core.Unirest
 import kong.unirest.core.UnirestException
 import kong.unirest.core.UnirestInstance
 import org.apache.groovy.json.internal.LazyMap
+import java.nio.file.Path
 
 //import org.codehaus.groovy.runtime.ResourceGroovyMethods
 import java.nio.file.Paths
@@ -2104,7 +2105,8 @@ final class JiraInstanceManagerRest {
         Map<String, String> filesToUpload = [:]
         sourceRoot.eachFileRecurse(FileType.FILES) { sourceFile ->
 
-            String relativePath = Paths.get(sourceRoot.parentFile).relativize(Paths.get(sourceFile))
+
+            String relativePath = Path.of(sourceRoot.parentFile.toURI()).relativize(Path.of(sourceFile.toURI()))
 
             filesToUpload.put(sourceFile.absolutePath, relativePath)
         }
