@@ -12,7 +12,6 @@ import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ScriptFieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.SpockResult
 import com.eficode.atlassian.jiraInstanceManager.beans.SrJob
-//import groovy.ant.AntBuilder
 import net.lingala.zip4j.ZipFile
 import groovy.io.FileType
 import groovy.json.JsonSlurper
