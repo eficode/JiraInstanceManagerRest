@@ -12,7 +12,7 @@ import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ScriptFieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.SpockResult
 import com.eficode.atlassian.jiraInstanceManager.beans.SrJob
-import groovy.ant.AntBuilder
+import net.lingala.zip4j.ZipFile
 import groovy.io.FileType
 import groovy.json.JsonSlurper
 import kong.unirest.core.Cookie
@@ -26,6 +26,7 @@ import kong.unirest.core.Unirest
 import kong.unirest.core.UnirestException
 import kong.unirest.core.UnirestInstance
 import org.apache.groovy.json.internal.LazyMap
+import java.nio.file.Path
 
 //import org.codehaus.groovy.runtime.ResourceGroovyMethods
 import java.nio.file.Paths
@@ -574,6 +575,10 @@ final class JiraInstanceManagerRest {
 
         Cookies cookies = acquireWebSudoCookies()
         HttpResponse<AssetAutomationBean> response = rest.post("/rest/insight/1.0/automation/rule").cookie(cookies).header("Content-Type", "application/json").body(postBody).asObject(AssetAutomationBean.class)
+        if(response.status != 200) {
+            log.error("Sent body: ${postBody}")
+            log.error("Error creating Asset Automation: ${response.status} - ${response.mapError(String.class)}")
+        }
         assert response.status == 200: "Error creationg Asset Automation"
 
 
@@ -907,15 +912,12 @@ final class JiraInstanceManagerRest {
                 }
 
             } catch (UnirestException ex) {
-
                 log.info("---- Jira not available yet ----")
                 sleep(1000)
             }
         }
 
         if (System.currentTimeMillis() > startTime + 180000) {
-
-
             throw new SocketTimeoutException("Timeout waiting for JIRA Setup dialog")
         }
 
@@ -2077,7 +2079,6 @@ final class JiraInstanceManagerRest {
 
         log.info("Installing JAR source files")
 
-        AntBuilder ant = new AntBuilder()
         UnirestInstance unirestInstance = Unirest.spawnInstance()
         String jarName = "$module-$version-sources.jar"
         String jarPath = repoUrl + group.replaceAll(/\./, "/") + "/" + module + "/" + version + "/" + jarName
@@ -2094,7 +2095,7 @@ final class JiraInstanceManagerRest {
         assert jarFile.canRead() && jarFile.isFile(): "Error downloading $jarPath"
         log.info("\tDownload appears successful, extracting jar")
 
-        ant.unzip(src: jarFile.absolutePath, dest: extractDir.absolutePath)
+        new ZipFile(jarFile.absolutePath).extractAll(extractDir.absolutePath)
 
 
         File sourceRoot = new File(extractDir.absolutePath + "/" + group.split(/\./).first())
@@ -2103,7 +2104,8 @@ final class JiraInstanceManagerRest {
         Map<String, String> filesToUpload = [:]
         sourceRoot.eachFileRecurse(FileType.FILES) { sourceFile ->
 
-            String relativePath = Paths.get(sourceRoot.parentFile.toURI()).relativize(Paths.get(sourceFile.toURI()))
+
+            String relativePath = Path.of(sourceRoot.parentFile.toURI()).relativize(Path.of(sourceFile.toURI()))
 
             filesToUpload.put(sourceFile.absolutePath, relativePath)
         }
@@ -2191,8 +2193,7 @@ final class JiraInstanceManagerRest {
         File zipFile = new File(tempDir.canonicalPath, branch + ".zip")
         assert zipFile.canRead(): "Error reading downloaded zip:" + zipFile.canonicalPath
 
-        AntBuilder ant = new AntBuilder()
-        ant.unzip(src: zipFile.canonicalPath, dest: unzipDir.canonicalPath)
+        new ZipFile(zipFile.canonicalPath).extractAll(unzipDir.canonicalPath)
 
         File srcRoot
         unzipDir.eachDir {

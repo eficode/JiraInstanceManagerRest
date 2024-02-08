@@ -1,10 +1,6 @@
 package com.eficode.atlassian.jiraInstanceManager.beans
 
 import com.fasterxml.jackson.annotation.JsonProperty
-import org.junit.platform.commons.util.Preconditions
-import org.junit.platform.engine.TestExecutionResult.Status
-
-
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
