@@ -1795,7 +1795,12 @@ final class JiraInstanceManagerRest {
 
         HttpResponse scriptResponse = rest.post("/rest/scriptrunner/latest/user/exec/").connectTimeout(4 * 60000).cookie(acquireWebSudoCookies()).contentType("application/json").body(["script": scriptContent]).asJson()
 
-        Map scriptResponseJson = scriptResponse.body.getObject().toMap()
+        Map scriptResponseJson = scriptResponse.body?.getObject()?.toMap()
+
+        if (!scriptResponseJson) {
+            log.warn("Error getting response after executing ScriptRunner Script, got body:" + scriptResponse.body?.toPrettyString())
+        }
+
         ArrayList<String> logRows = scriptResponseJson.snapshot?.log?.split("\n")
         ArrayList<String> errorRows = scriptResponseJson.errorMessages
 
