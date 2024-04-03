@@ -60,6 +60,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         Unirest.config().defaultBaseUrl(baseUrl).setDefaultBasicAuth(restAdmin, restPw)
 
 
+
         jsmDep.setJiraLicense(jsmLicense)
         jsmDep.appsToInstall.put(MarketplaceApp.getScriptRunnerVersion(baseSrVersion).getDownloadUrl(), srLicense)
 
@@ -405,7 +406,9 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "Adding a failing test to the main package"
         log.info("Uploading failing test class")
-        assert jira.updateScriptrunnerFile(new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
+        String failingTestBody = new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy").text
+        failingTestBody = failingTestBody.replaceAll("@Ignore.*", "")
+        assert jira.updateScriptrunnerFile(failingTestBody, "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
         sleep(2000) //SR needs sometime to pick up the diff
 
         log.info("\tRunning the same package, class and method tests")
@@ -498,7 +501,9 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         when: "Adding a failing test to the main package"
         log.info("Uploading failing test class")
-        assert jira.updateScriptrunnerFile(new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"), "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
+        String failingTestBody = new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy").text
+        failingTestBody = failingTestBody.replaceAll("@Ignore.*", "")
+        assert jira.updateScriptrunnerFile(failingTestBody, "com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts/JiraLocalFailedSpockTest.groovy"): "Error updating failing test file"
         sleep(1500)//Wait for SR to detect file changes
 
         log.info("\tRunning the same package, class and method tests")

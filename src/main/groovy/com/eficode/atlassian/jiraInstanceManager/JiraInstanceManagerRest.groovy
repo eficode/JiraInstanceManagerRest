@@ -1007,7 +1007,7 @@ final class JiraInstanceManagerRest {
      * @param timeOutS If this timeout is breached false will be returned
      * @return true if JIRA got responsive before timeout was reached
      */
-    boolean waitForJiraToBeResponsive(long timeOutS = 90) {
+    boolean waitForJiraToBeResponsive(long timeOutS = 160) {
 
 
         HttpResponse<Map> response = null
@@ -1801,8 +1801,8 @@ final class JiraInstanceManagerRest {
             log.warn("Error getting response after executing ScriptRunner Script, got body:" + scriptResponse.body?.toPrettyString())
         }
 
-        ArrayList<String> logRows = scriptResponseJson.snapshot?.log?.split("\n")
-        ArrayList<String> errorRows = scriptResponseJson.errorMessages
+        ArrayList<String> logRows = scriptResponseJson?.snapshot?.log?.split("\n") ?: []
+        ArrayList<String> errorRows = scriptResponseJson?.errorMessages ?: [] as ArrayList<String>
 
         errorRows.each { log.info(it) }
         logRows.each { log.info(it) }
