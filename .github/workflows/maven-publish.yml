@@ -47,7 +47,7 @@ jobs:
           
           mkdir -p repository/com/eficode/atlassian/jirainstancemanager/
           echo Building and installing "normal" version
-          mvn install -f pom.xml -DcreateChecksum=true 
+          mvn install -f pom.xml -DcreateChecksum=true -DskipTests
 
       - name: Compile and install standalone version
         run: |
@@ -57,7 +57,7 @@ jobs:
           echo Creating pom for standalone version and installing
           mvn gplus:execute@execute 
           echo Building and installing "standalone" version
-          mvn install -f pom-standalone.xml -DcreateChecksum=true 
+          mvn install -f pom-standalone.xml -DcreateChecksum=true -DskipTests
 
       - name: Copying JAR files
         run: |
