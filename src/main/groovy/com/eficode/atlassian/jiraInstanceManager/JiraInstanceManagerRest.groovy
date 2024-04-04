@@ -868,6 +868,7 @@ final class JiraInstanceManagerRest {
                 .cookie(cookies)
                 .field("noemail", "true")
                 .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
+                .connectTimeout(4 * 60000)
                 .asString()
 
         assert setupEmailResponse.status == 302, "Error setting up email"
