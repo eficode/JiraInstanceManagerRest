@@ -1,0 +1,6 @@
+#NOTE: This is a Maven Resolver internal implementation file, its format can be changed without prior notice.
+#Fri Apr 05 14:01:45 UTC 2024
+jirainstancemanager-2.1.5-sources.jar>=
+jirainstancemanager-2.1.5.pom>=
+jirainstancemanager-2.1.5-test-sources.jar>=
+jirainstancemanager-2.1.5.jar>=
