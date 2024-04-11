@@ -575,7 +575,7 @@ final class JiraInstanceManagerRest {
 
         Cookies cookies = acquireWebSudoCookies()
         HttpResponse<AssetAutomationBean> response = rest.post("/rest/insight/1.0/automation/rule").cookie(cookies).header("Content-Type", "application/json").body(postBody).asObject(AssetAutomationBean.class)
-        if(response.status != 200) {
+        if (response.status != 200) {
             log.error("Sent body: ${postBody}")
             log.error("Error creating Asset Automation: ${response.status} - ${response.mapError(String.class)}")
         }
@@ -722,7 +722,11 @@ final class JiraInstanceManagerRest {
             if (currentLicense == newLicense) {
                 log.info("\t\tThe license is already installed")
             } else {
-                HttpResponse putLicenseResponse = rest.put(localAppUrl + "/license").contentType("application/vnd.atl.plugins+json").cookie(sudoCookies).body(["rawLicense": newLicense]).asJson()
+                HttpResponse putLicenseResponse = rest.put(localAppUrl + "/license")
+                        .contentType("application/vnd.atl.plugins+json")
+                        .cookie(sudoCookies).body(["rawLicense": newLicense])
+                        .connectTimeout(4 * 60000)
+                        .asJson()
 
                 Map putLicenseResponseMap = putLicenseResponse.body.getObject().toMap()
 
@@ -786,7 +790,7 @@ final class JiraInstanceManagerRest {
         Integer maxFailedAttempts = 3
 
         HttpResponse setAppProperties = null
-        while (failedRequests < maxFailedAttempts ) {
+        while (failedRequests < maxFailedAttempts) {
 
 
             try {
