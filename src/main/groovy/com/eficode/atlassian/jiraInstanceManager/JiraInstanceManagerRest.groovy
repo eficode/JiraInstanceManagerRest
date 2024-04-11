@@ -941,7 +941,7 @@ final class JiraInstanceManagerRest {
                 log.warn("\t" * 2 + setupDbResponse?.body?.toString()?.take(15) + "...")
             }
 
-            assert waitForJiraToBeResponsive(4 * 60): "Timed out waiting for JIRA to become responsive after H2DB setup"
+            assert waitForJiraToBeResponsive(6 * 60): "Timed out waiting for JIRA to become responsive after H2DB setup"
 
         }
 
