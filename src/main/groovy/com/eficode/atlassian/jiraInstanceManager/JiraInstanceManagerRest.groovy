@@ -48,6 +48,7 @@ final class JiraInstanceManagerRest {
     private boolean verifySsl = true
     private String proxyhost
     private Integer proxyPort
+    private Integer defaultTimeout = 2 * 60000
 
 
     ArrayList<FieldBean.FieldType> cached_FieldTypes = []
@@ -277,6 +278,36 @@ final class JiraInstanceManagerRest {
 
         return ["cookies": cookies, "lastResponse": getResponse]
     }
+
+    /**
+     * Sets a new default timeout for any subsequent rest calls
+     * @param timeoutMs
+     */
+    void setDefaultTimeout(Integer timeoutMs) {
+
+        this.defaultTimeout = timeoutMs
+        this.rest = getUnirestInstance(true)
+
+
+    }
+
+    UnirestInstance getUnirestInstance(boolean withBasicAuth = true) {
+        UnirestInstance unirestInstance = Unirest.spawnInstance()
+        unirestInstance.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl).connectTimeout(defaultTimeout)
+
+        if (proxyPort && proxyhost) {
+            unirestInstance.config().proxy(proxyhost, proxyPort)
+        }
+
+
+        if (withBasicAuth) {
+            unirestInstance.config().setDefaultBasicAuth(adminUsername, adminPassword)
+        }
+
+
+        return unirestInstance
+    }
+
 
     /** --- System Settings & Actions --- ***/
 
@@ -575,7 +606,7 @@ final class JiraInstanceManagerRest {
 
         Cookies cookies = acquireWebSudoCookies()
         HttpResponse<AssetAutomationBean> response = rest.post("/rest/insight/1.0/automation/rule").cookie(cookies).header("Content-Type", "application/json").body(postBody).asObject(AssetAutomationBean.class)
-        if(response.status != 200) {
+        if (response.status != 200) {
             log.error("Sent body: ${postBody}")
             log.error("Error creating Asset Automation: ${response.status} - ${response.mapError(String.class)}")
         }
@@ -722,7 +753,11 @@ final class JiraInstanceManagerRest {
             if (currentLicense == newLicense) {
                 log.info("\t\tThe license is already installed")
             } else {
-                HttpResponse putLicenseResponse = rest.put(localAppUrl + "/license").contentType("application/vnd.atl.plugins+json").cookie(sudoCookies).body(["rawLicense": newLicense]).asJson()
+                HttpResponse putLicenseResponse = rest.put(localAppUrl + "/license")
+                        .contentType("application/vnd.atl.plugins+json")
+                        .cookie(sudoCookies).body(["rawLicense": newLicense])
+                        .connectTimeout(defaultTimeout * 2 )
+                        .asJson()
 
                 Map putLicenseResponseMap = putLicenseResponse.body.getObject().toMap()
 
@@ -786,7 +821,7 @@ final class JiraInstanceManagerRest {
         Integer maxFailedAttempts = 3
 
         HttpResponse setAppProperties = null
-        while (failedRequests < maxFailedAttempts ) {
+        while (failedRequests < maxFailedAttempts) {
 
 
             try {
@@ -826,7 +861,7 @@ final class JiraInstanceManagerRest {
                         .cookie(cookies)
                         .field("setupLicenseKey", jiraLicense.replaceAll("[\n\r]", ""))
                         .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
-                        .connectTimeout(4 * 60000)
+                        .connectTimeout(defaultTimeout * 2)
                         .asJson()
 
                 assert setupLicenceResponse.status == 302, "Error setting license"
@@ -868,7 +903,7 @@ final class JiraInstanceManagerRest {
                 .cookie(cookies)
                 .field("noemail", "true")
                 .field("atl_token", cookies.find { it.name == "atlassian.xsrf.token" }.value)
-                .connectTimeout(4 * 60000)
+                .connectTimeout(defaultTimeout * 2)
                 .asString()
 
         assert setupEmailResponse.status == 302, "Error setting up email"
@@ -928,7 +963,7 @@ final class JiraInstanceManagerRest {
             setupDbResponse = localUnirest.post("/secure/SetupDatabase.jspa")
                     .field("databaseOption", "internal")
                     .field("atl_token", xsrfCookie.value)
-                    .connectTimeout((8 * 60000))
+                    .connectTimeout((4 * defaultTimeout))
                     .asString()
         } catch (Throwable ex) {
 
@@ -937,7 +972,7 @@ final class JiraInstanceManagerRest {
                 log.warn("\t" * 2 + setupDbResponse?.body?.toString()?.take(15) + "...")
             }
 
-            assert waitForJiraToBeResponsive(4 * 60): "Timed out waiting for JIRA to become responsive after H2DB setup"
+            assert waitForJiraToBeResponsive(6 * 60): "Timed out waiting for JIRA to become responsive after H2DB setup"
 
         }
 
@@ -1201,7 +1236,7 @@ final class JiraInstanceManagerRest {
             createProjectResponse = rest.post("/rest/jira-importers-plugin/1.0/demo/create")
                     .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
                     .cookie(acquireWebSudoCookies())
-                    .connectTimeout(60000 * 8)
+                    .connectTimeout(defaultTimeout * 2 )
                     .header("X-Atlassian-Token", "no-check")
                     .field("name", name)
                     .field("key", projectKey.toUpperCase())
@@ -1527,7 +1562,6 @@ final class JiraInstanceManagerRest {
                 )
                 .contentType("application/json")
                 .cookie(acquireWebSudoCookies())
-                .connectTimeout(60000 * 8)
                 .asObject(Map)
 
         assert spockResponse.status == 200: "Got unexpected HTTP Status when running Spock test"
@@ -1578,7 +1612,6 @@ final class JiraInstanceManagerRest {
                     .body(["FIELD_TEST": [testToRun], "FIELD_SCAN_PACKAGES": packageToRun])
                     .contentType("application/json")
                     .cookie(acquireWebSudoCookies())
-                    .connectTimeout(60000 * 8)
                     .asJson()
 
 
@@ -1794,7 +1827,7 @@ final class JiraInstanceManagerRest {
     Map executeLocalScriptFile(String scriptContent) {
 
 
-        HttpResponse scriptResponse = rest.post("/rest/scriptrunner/latest/user/exec/").connectTimeout(4 * 60000).cookie(acquireWebSudoCookies()).contentType("application/json").body(["script": scriptContent]).asJson()
+        HttpResponse scriptResponse = rest.post("/rest/scriptrunner/latest/user/exec/").cookie(acquireWebSudoCookies()).contentType("application/json").body(["script": scriptContent]).asJson()
 
         Map scriptResponseJson = scriptResponse.body?.getObject()?.toMap()
 
@@ -2086,6 +2119,7 @@ final class JiraInstanceManagerRest {
         log.info("Installing JAR source files")
 
         UnirestInstance unirestInstance = Unirest.spawnInstance()
+        unirestInstance.config().connectTimeout(defaultTimeout)
         String jarName = "$module-$version-sources.jar"
         String jarPath = repoUrl + group.replaceAll(/\./, "/") + "/" + module + "/" + version + "/" + jarName
 
@@ -2188,6 +2222,7 @@ final class JiraInstanceManagerRest {
     boolean installGroovySources(String githubRepoUrl, String branch = "master") {
 
         UnirestInstance githubRest = Unirest.spawnInstance()
+        githubRest.config().connectTimeout(defaultTimeout)
 
         File tempDir = File.createTempDir()
         File unzipDir = new File(tempDir.canonicalPath, "unzip")
@@ -2230,23 +2265,6 @@ final class JiraInstanceManagerRest {
         assert response.status == 200: "Error getting userKey"
         return response.body.getObject().toMap().key
 
-    }
-
-    UnirestInstance getUnirestInstance(boolean withBasicAuth = true) {
-        UnirestInstance unirestInstance = Unirest.spawnInstance()
-        unirestInstance.config().defaultBaseUrl(baseUrl).verifySsl(verifySsl)
-
-        if (proxyPort && proxyhost) {
-            unirestInstance.config().proxy(proxyhost, proxyPort)
-        }
-
-
-        if (withBasicAuth) {
-            unirestInstance.config().setDefaultBasicAuth(adminUsername, adminPassword)
-        }
-
-
-        return unirestInstance
     }
 
 
