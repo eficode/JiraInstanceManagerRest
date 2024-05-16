@@ -62,7 +62,10 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         jsmDep.setJiraLicense(jsmLicense)
         jsmDep.appsToInstall.put(MarketplaceApp.getScriptRunnerVersion(baseSrVersion).getDownloadUrl(), srLicense)
-        jsmDep.jsmContainer.enableJvmDebug()
+        if (!jsmDep.jsmContainer.created) {
+            jsmDep.jsmContainer.enableJvmDebug()
+        }
+
         jsmDep.jsmContainer.enableAppUpload()
 
         if (!(reuseContainer && jsmDep?.jsmContainer?.status() == ContainerState.Status.Running)) {
@@ -352,7 +355,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         setup:
         log.info("Testing RunSpockTest")
         JiraInstanceManagerRest jim = new JiraInstanceManagerRest(baseUrl)
-        String endpointFilePath = "com/eficode/atlassian/jiraInstanceManager/remoteSpockEndpoint.groovy"
+        String endpointFilePath = "com/eficode/atlassian/jira/remotespock/remoteSpockEndpoint.groovy"
 
         assert jim.installScriptRunner(srLicense, srVersionNumber): "Error installing SR version:" + srVersionNumber
         log.info("\tUsing SR version:" + srVersionNumber)
@@ -371,6 +374,7 @@ class JiraInstanceManagerRestSpec extends Specification {
         assert !jim.isSpockEndpointDeployed(true) : "isSpockEndpointDeployed() Reports RemoteSpock as deployed even though it isn't"
         assert jim.deploySpockEndpoint(["com.riadalabs.jira.plugins.insight"]) : "Error deploying SpockRemote endpoint"
         assert jim.isSpockEndpointDeployed(true) : "isSpockEndpointDeployed() Reports RemoteSpock as NOT deployed even though it should be"
+        assert jim.getScriptrunnerFile(endpointFilePath).readLines().any {it.startsWith("@WithPlugin(\"com.riadalabs.jira.plugins.insight\")")} : "The deployed endpoint does not appear to have the specified @WithPlugin statement"
         log.info("\tSuccessfully deployed endpoint")
 
 
@@ -394,7 +398,6 @@ class JiraInstanceManagerRestSpec extends Specification {
         then:
         spockClassOut.contains(" 1 tests successful")
         spockMethodOut.contains(" 1 tests successful")
-        ""
 
 
 

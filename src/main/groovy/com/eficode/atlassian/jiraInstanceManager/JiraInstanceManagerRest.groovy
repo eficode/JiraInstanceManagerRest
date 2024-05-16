@@ -755,7 +755,7 @@ final class JiraInstanceManagerRest {
                 HttpResponse putLicenseResponse = rest.put(localAppUrl + "/license")
                         .contentType("application/vnd.atl.plugins+json")
                         .cookie(sudoCookies).body(["rawLicense": newLicense])
-                        .connectTimeout(defaultTimeout * 2 )
+                        .connectTimeout(defaultTimeout * 2)
                         .asJson()
 
                 Map putLicenseResponseMap = putLicenseResponse.body.getObject().toMap()
@@ -1235,7 +1235,7 @@ final class JiraInstanceManagerRest {
             createProjectResponse = rest.post("/rest/jira-importers-plugin/1.0/demo/create")
                     .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
                     .cookie(acquireWebSudoCookies())
-                    .connectTimeout(defaultTimeout * 2 )
+                    .connectTimeout(defaultTimeout * 2)
                     .header("X-Atlassian-Token", "no-check")
                     .field("name", name)
                     .field("key", projectKey.toUpperCase())
@@ -1525,44 +1525,43 @@ final class JiraInstanceManagerRest {
     }
 
 
-
     /** --- SPOCK Test Actions --- **/
 
 
     /**
      * Deploys/Updates remoteSpock endpoint. If endpoint already exists, its script will be updated.
      * @param withPlugins Additional plugins that should be loaded by the endpoint, eg: ['is.origo.jira.tempo-plugin','com.riadalabs.jira.plugins.insight' ]
+     * @param deployBranch , optional defaults to main, of repo https://github.com/eficode/remoteSpock
      * @return true on successful create/updated
      */
-    Boolean deploySpockEndpoint(ArrayList<String> withPlugins = []) {
+    Boolean deploySpockEndpoint(ArrayList<String> withPlugins = [], String deployBranch = "main") {
 
-        String endpointFilePath = "com/eficode/atlassian/jiraInstanceManager/remoteSpockEndpoint.groovy"
 
         log.info("Deploying/Updating Spock Rest Endpoint")
+        assert installGroovySources("https://github.com/eficode/remoteSpock", deployBranch): "Error fetching and/or installing remoteSpock sources"
+        log.info("\tSuccessfully updated endpoint script")
 
-        URL fileUrl = this.class.getResource("/$endpointFilePath")
-        File endpointFile = new File(fileUrl.toURI())
-        log.debug("\tWill use use sources from:" + endpointFile.canonicalPath)
-        assert endpointFile.canRead() : "Error reading local file for remoteSpockEndpoint.groovy, " +  endpointFile?.canonicalPath
+        String endpointFilePath = "com/eficode/atlassian/jira/remotespock/remoteSpockEndpoint.groovy"
 
-
-        String endpointBody = endpointFile.text
         if (withPlugins) {
-            ArrayList<String> withPluginStatements = withPlugins.collect {"@WithPlugin(\"$it\")"}
+
+            log.debug("\tCustomizing endpoint script, adding \"WithPlugins:\" " + withPlugins.join(", "))
+            ArrayList<String> withPluginStatements = withPlugins.collect { "@WithPlugin(\"$it\")" }
+            String endpointBody = getScriptrunnerFile(endpointFilePath)
             endpointBody = endpointBody.replaceFirst(/\/\/@With.*/, withPluginStatements.join("\n"))
+            assert updateScriptrunnerFile(endpointBody, endpointFilePath): "Error customizing remoteSpockEndpoint.groovy in JIRA"
+            log.debug("\t\tFinished customizing endpoint script")
         }
 
-        log.debug("\tCreating/Updating endpoint file in JIRA")
-        assert updateScriptrunnerFile(endpointBody, endpointFilePath) : "Error creating/updating remoteSpockEndpoint.groovy in JIRA"
+
         log.info("\tFinished creating/updating JIRA file: " + endpointFilePath)
 
         if (!isSpockEndpointDeployed()) {
             log.debug("\tCreating endpoint")
-            cached_IsSpockEndpointDeployed = createScriptedRestEndpoint(endpointFilePath, "","Allows execution of Spock tests")
-            assert cached_IsSpockEndpointDeployed : "Error creating Spock Endpoint"
+            cached_IsSpockEndpointDeployed = createScriptedRestEndpoint(endpointFilePath, "", "Allows execution of Spock tests")
+            assert cached_IsSpockEndpointDeployed: "Error creating Spock Endpoint"
             log.info("\tCreated endpoint")
-            log.info("\tCreated endpoint")
-        }else {
+        } else {
             log.info("\tEndpoint already exists")
         }
 
@@ -1572,7 +1571,7 @@ final class JiraInstanceManagerRest {
 
     /**
      * Checks if the Spock test endpoint has been setup
-     * @param forceCheck, if true a cached value will be discarded and a new check will be run
+     * @param forceCheck , if true a cached value will be discarded and a new check will be run
      * @return true if the endpoint is deployed.
      */
     Boolean isSpockEndpointDeployed(boolean forceCheck = false) {
@@ -1596,7 +1595,8 @@ final class JiraInstanceManagerRest {
                 .connectTimeout(10 * 60000)
                 .asString()
 
-        markLogs("FINISHED TEST: $fullClassName:$methodToRun") //Make sure our previous logfile gets marked with "Finished"
+        markLogs("FINISHED TEST: $fullClassName:$methodToRun")
+        //Make sure our previous logfile gets marked with "Finished"
         log.info("Test finished and REST endpoint returned status:" + response?.statusText)
 
 
@@ -1605,7 +1605,6 @@ final class JiraInstanceManagerRest {
         return response.body
 
     }
-
 
 
     /**
@@ -2311,7 +2310,7 @@ final class JiraInstanceManagerRest {
         assert unzipDir.mkdirs(): "Error creating temporary unzip dir:" + unzipDir.canonicalPath
 
         HttpResponse<File> downloadResponse = githubRest.get("$githubRepoUrl/archive/refs/heads/${branch}.zip").asFile((tempDir.canonicalPath.endsWith("/") ?: tempDir.canonicalPath + "/").toString() + "${branch}.zip")
-
+        assert downloadResponse.success: "Error downloading git repo from " + downloadResponse?.requestSummary?.rawPath
 
         File zipFile = new File(tempDir.canonicalPath, branch + ".zip")
         assert zipFile.canRead(): "Error reading downloaded zip:" + zipFile.canonicalPath
