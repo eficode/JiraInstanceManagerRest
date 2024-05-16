@@ -28,8 +28,6 @@ import kong.unirest.core.UnirestInstance
 import org.apache.groovy.json.internal.LazyMap
 import java.nio.file.Path
 
-//import org.codehaus.groovy.runtime.ResourceGroovyMethods
-import java.nio.file.Paths
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -56,6 +54,7 @@ final class JiraInstanceManagerRest {
     ArrayList<CustomFieldBean> cached_CustomFieldBeans = []
     ArrayList<ProjectBean> cached_Projects = []
     ArrayList<IssueTypeBean> cached_IssueTypes = []
+    Boolean cached_IsSpockEndpointDeployed
 
 
     /**
@@ -1526,12 +1525,93 @@ final class JiraInstanceManagerRest {
     }
 
 
-    /** --- Scriptrunner Actions --- **/
+
+    /** --- SPOCK Test Actions --- **/
+
+
+    /**
+     * Deploys/Updates remoteSpock endpoint. If endpoint already exists, its script will be updated.
+     * @param withPlugins Additional plugins that should be loaded by the endpoint, eg: ['is.origo.jira.tempo-plugin','com.riadalabs.jira.plugins.insight' ]
+     * @return true on successful create/updated
+     */
+    Boolean deploySpockEndpoint(ArrayList<String> withPlugins = []) {
+
+        String endpointFilePath = "com/eficode/atlassian/jiraInstanceManager/remoteSpockEndpoint.groovy"
+
+        log.info("Deploying/Updating Spock Rest Endpoint")
+
+        URL fileUrl = this.class.getResource("/$endpointFilePath")
+        File endpointFile = new File(fileUrl.toURI())
+        log.debug("\tWill use use sources from:" + endpointFile.canonicalPath)
+        assert endpointFile.canRead() : "Error reading local file for remoteSpockEndpoint.groovy, " +  endpointFile?.canonicalPath
+
+
+        String endpointBody = endpointFile.text
+        if (withPlugins) {
+            ArrayList<String> withPluginStatements = withPlugins.collect {"@WithPlugin(\"$it\")"}
+            endpointBody = endpointBody.replaceFirst(/\/\/@With.*/, withPluginStatements.join("\n"))
+        }
+
+        log.debug("\tCreating/Updating endpoint file in JIRA")
+        assert updateScriptrunnerFile(endpointBody, endpointFilePath) : "Error creating/updating remoteSpockEndpoint.groovy in JIRA"
+        log.info("\tFinished creating/updating JIRA file: " + endpointFilePath)
+
+        if (!isSpockEndpointDeployed()) {
+            log.debug("\tCreating endpoint")
+            cached_IsSpockEndpointDeployed = createScriptedRestEndpoint(endpointFilePath, "","Allows execution of Spock tests")
+            assert cached_IsSpockEndpointDeployed : "Error creating Spock Endpoint"
+            log.info("\tCreated endpoint")
+            log.info("\tCreated endpoint")
+        }else {
+            log.info("\tEndpoint already exists")
+        }
+
+        return cached_IsSpockEndpointDeployed
+
+    }
+
+    /**
+     * Checks if the Spock test endpoint has been setup
+     * @param forceCheck, if true a cached value will be discarded and a new check will be run
+     * @return true if the endpoint is deployed.
+     */
+    Boolean isSpockEndpointDeployed(boolean forceCheck = false) {
+
+        if (forceCheck || !cached_IsSpockEndpointDeployed) {
+            cached_IsSpockEndpointDeployed = getScriptedRestEndpointId("remoteSpock")
+        }
+        return cached_IsSpockEndpointDeployed
+    }
+
+    def runSpockTest(String fullClassName, String methodToRun = "") {
+
+
+        markLogs("STARTING TEST: $fullClassName:$methodToRun", true) //Make sure we get a new log file with our mark
+
+        log.info("Startign test: $fullClassName:${methodToRun ?: "(All)"}")
+        HttpResponse<String> response = rest.post("/rest/scriptrunner/latest/custom/remoteSpock/spock/class")
+                .body(["className": fullClassName, "methodName": methodToRun ?: null])
+                .contentType("application/json")
+                .cookie(acquireWebSudoCookies())
+                .connectTimeout(10 * 60000)
+                .asString()
+
+        markLogs("FINISHED TEST: $fullClassName:$methodToRun") //Make sure our previous logfile gets marked with "Finished"
+        log.info("Test finished and REST endpoint returned status:" + response?.statusText)
+
+
+        assert response.status == 200: "Remote SPOCK endpoint returned unexpected status:" + response.status + ", response body:" + response.body?.toString()
+
+        return response.body
+
+    }
+
 
 
     /**
      * Uses ScriptRunners (versions from V6.55.0) feature "Test Runner" to execute JUnit and SPOCK tests
      * This functionality in SR is HIGHLY unstable and can easily crash the entire JIRA instance
+     * It also appears to have problems and severe delays when large codebases are in use.
      *
      * This functionality is also quite picky with file names and locations
      *  <li>Files should be placed in $JIRAHOME/scripts/</li>
@@ -1544,7 +1624,7 @@ final class JiraInstanceManagerRest {
      *
      * @return A SpockResult representing the test events
      */
-    SpockResult runSpockTest(String packageToRun, String classToRun = "", String methodToRun = "") {
+    SpockResult runSrSpockTest(String packageToRun, String classToRun = "", String methodToRun = "") {
 
         if (methodToRun) {
             assert classToRun != "": "classToRun must be supplied when methodToRun is supplied"
@@ -1588,7 +1668,7 @@ final class JiraInstanceManagerRest {
      * @return A map containing the raw result from SR
      */
     @Deprecated
-    LazyMap runSpockTestV6(String packageToRun, String classToRun = "", String methodToRun = "") {
+    LazyMap runSrSpockTestV6(String packageToRun, String classToRun = "", String methodToRun = "") {
 
 
         String testToRun = packageToRun
@@ -1663,6 +1743,8 @@ final class JiraInstanceManagerRest {
 
     }
 
+
+    /** --- Scriptrunner Actions --- **/
 
     /**
      * Delete a scriptrunner file
@@ -2214,7 +2296,7 @@ final class JiraInstanceManagerRest {
 
     /**
      * Installs Groovy sources from a Github repo.
-     * Requries that the sources be placed in $repoRoot/src/main/groovy/
+     * Requires that the sources be placed in $repoRoot/src/main/groovy/
      * @param githubRepoUrl ex: "https://github.com/eficode/InsightManager"
      * @param branch (Optional, default is master)
      * @return true on success

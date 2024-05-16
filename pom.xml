@@ -16,6 +16,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <groovy.version>4.0.18</groovy.version>
         <spock-core.version>2.3-groovy-4.0</spock-core.version>
+        <remotespock.version>0.1</remotespock.version>
     </properties>
 
     <dependencyManagement>
@@ -24,7 +25,7 @@
             <dependency>
                 <groupId>com.konghq</groupId>
                 <artifactId>unirest-java-bom</artifactId>
-                <version>4.2.7</version>
+                <version>4.2.9</version>
                 <type>pom</type>
                 <scope>import</scope>
             </dependency>
@@ -47,12 +48,17 @@
             <groupId>com.konghq</groupId>
             <artifactId>unirest-objectmapper-jackson</artifactId>
         </dependency>
+        <dependency>
+            <groupId>com.eficode.atlassian</groupId>
+            <artifactId>remotespock</artifactId>
+            <version>0.1</version>
+        </dependency>
 
 
         <dependency>
             <groupId>com.eficode</groupId>
             <artifactId>devstack-standalone</artifactId>
-            <version>2.3.13</version>
+            <version>2.3.22</version>
             <scope>test</scope>
             <exclusions>
                 <exclusion>
@@ -109,6 +115,10 @@
         <repository>
             <id>eficode-github-insightManager</id>
             <url>https://github.com/eficode/devStack/raw/packages/repository/</url>
+        </repository>
+        <repository>
+            <id>eficode-github-remotespock</id>
+            <url>https://github.com/eficode/remoteSpock/raw/packages/repository/</url>
         </repository>
     </repositories>
 
