@@ -1,5 +1,6 @@
 package com.eficode.atlassian.jiraInstanceManager
 
+import com.eficode.atlassian.jira.remotespock.beans.responses.SpockOutputType
 import com.eficode.atlassian.jiraInstanceManager.beans.AssetAutomationBean
 import com.eficode.atlassian.jiraInstanceManager.beans.CustomFieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.FieldBean
@@ -1582,18 +1583,27 @@ final class JiraInstanceManagerRest {
         return cached_IsSpockEndpointDeployed
     }
 
-    def runSpockTest(String fullClassName, String methodToRun = "") {
+    /**
+     * Runs a spock test, presumes that deploySpockEndpoint() has been run.
+     * The class files are presumed to be in $JIRA_HOME/scripts
+     * @param fullClassName The full, canonical name of the class
+     * @param methodToRun Optional, a method in the class to run, if not given all test methods will be run.
+     * @param outputType The return type you´d like, see SpockOutputType-enum for acceptable types, default is StringSummary
+     * @param outputDir If given, the reports will be saved at this path on the JIRA server
+     * @return A map where the keys are report file names and the values are the file/report body, ex: [report.json : "....test failed...."]
+     */
+    Map runSpockTest(String fullClassName, String methodToRun = "", SpockOutputType outputType = SpockOutputType.StringSummary, String outputDir = null) {
 
 
         markLogs("STARTING TEST: $fullClassName:$methodToRun", true) //Make sure we get a new log file with our mark
 
         log.info("Startign test: $fullClassName:${methodToRun ?: "(All)"}")
-        HttpResponse<String> response = rest.post("/rest/scriptrunner/latest/custom/remoteSpock/spock/class")
-                .body(["className": fullClassName, "methodName": methodToRun ?: null])
+        HttpResponse<Map> response = rest.post("/rest/scriptrunner/latest/custom/remoteSpock/spock/class")
+                .body(["className": fullClassName, "methodName": methodToRun ?: null, "outputType" : outputType.name(), "outputDirPath":outputDir])
                 .contentType("application/json")
                 .cookie(acquireWebSudoCookies())
                 .connectTimeout(10 * 60000)
-                .asString()
+                .asObject(Map)
 
         markLogs("FINISHED TEST: $fullClassName:$methodToRun")
         //Make sure our previous logfile gets marked with "Finished"

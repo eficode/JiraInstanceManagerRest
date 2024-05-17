@@ -380,7 +380,7 @@ class JiraInstanceManagerRestSpec extends Specification {
 
 
 
-        when: "When running the main test as packageToRun, classToRun and methodToRun"
+        when: "When running the main test as classToRun and methodToRun"
         File jiraLocalScriptsDir = new File("src/test/groovy/com/eficode/atlassian/jiraInstanceManager/jiraLocalScripts")
         assert jiraLocalScriptsDir.isDirectory()
         File jiraLocalScriptRootDir = new File("src/test/groovy")
