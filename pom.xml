@@ -16,7 +16,7 @@
         <maven.compiler.target>11</maven.compiler.target>
         <groovy.version>4.0.18</groovy.version>
         <spock-core.version>2.3-groovy-4.0</spock-core.version>
-        <remotespock.version>0.1</remotespock.version>
+        <remotespock.version>0.2</remotespock.version>
     </properties>
 
     <dependencyManagement>
@@ -51,7 +51,7 @@
         <dependency>
             <groupId>com.eficode.atlassian</groupId>
             <artifactId>remotespock</artifactId>
-            <version>0.1</version>
+            <version>${remotespock.version}</version>
         </dependency>
 
 
