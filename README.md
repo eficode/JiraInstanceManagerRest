@@ -4,6 +4,14 @@ Jira Instance Manager Rest (JR) is a Groovy library which can perform several ad
 
 ## Breaking Changes
 
+* 2.2.0 
+  * **Renaming of Spock related methods**
+    * The following methods where renamed to differentiate from the new runSpockTest-method which uses a custom REST endpoint. 
+    Testing has shown the old solution to be slow and unresponsive when the code base is large. This release introduces code for a new 
+    endpoint which we hope will be more stable give better output. 
+      * runSpockTest -> runSrSpockTest
+      * runSpockTestV6 -> runSrSpockTestV6
+
 * 2.1.0
   * Switching to Unirest 4 might break some things if you depend on JIM supplying v4
     * See https://github.com/Kong/unirest-java/blob/main/UPGRADE_GUIDE.md for Unirest breaking changes

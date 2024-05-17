@@ -1,5 +1,6 @@
 package com.eficode.atlassian.jiraInstanceManager
 
+import com.eficode.atlassian.jira.remotespock.beans.responses.SpockOutputType
 import com.eficode.atlassian.jiraInstanceManager.beans.AssetAutomationBean
 import com.eficode.atlassian.jiraInstanceManager.beans.CustomFieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.FieldBean
@@ -28,8 +29,6 @@ import kong.unirest.core.UnirestInstance
 import org.apache.groovy.json.internal.LazyMap
 import java.nio.file.Path
 
-//import org.codehaus.groovy.runtime.ResourceGroovyMethods
-import java.nio.file.Paths
 import org.slf4j.Logger
 import org.slf4j.LoggerFactory
 
@@ -56,6 +55,7 @@ final class JiraInstanceManagerRest {
     ArrayList<CustomFieldBean> cached_CustomFieldBeans = []
     ArrayList<ProjectBean> cached_Projects = []
     ArrayList<IssueTypeBean> cached_IssueTypes = []
+    Boolean cached_IsSpockEndpointDeployed
 
 
     /**
@@ -756,7 +756,7 @@ final class JiraInstanceManagerRest {
                 HttpResponse putLicenseResponse = rest.put(localAppUrl + "/license")
                         .contentType("application/vnd.atl.plugins+json")
                         .cookie(sudoCookies).body(["rawLicense": newLicense])
-                        .connectTimeout(defaultTimeout * 2 )
+                        .connectTimeout(defaultTimeout * 2)
                         .asJson()
 
                 Map putLicenseResponseMap = putLicenseResponse.body.getObject().toMap()
@@ -1236,7 +1236,7 @@ final class JiraInstanceManagerRest {
             createProjectResponse = rest.post("/rest/jira-importers-plugin/1.0/demo/create")
                     .cookie(getCookiesFromRedirect("/rest/project-templates/1.0/templates").cookies)
                     .cookie(acquireWebSudoCookies())
-                    .connectTimeout(defaultTimeout * 2 )
+                    .connectTimeout(defaultTimeout * 2)
                     .header("X-Atlassian-Token", "no-check")
                     .field("name", name)
                     .field("key", projectKey.toUpperCase())
@@ -1526,12 +1526,101 @@ final class JiraInstanceManagerRest {
     }
 
 
-    /** --- Scriptrunner Actions --- **/
+    /** --- SPOCK Test Actions --- **/
+
+
+    /**
+     * Deploys/Updates remoteSpock endpoint. If endpoint already exists, its script will be updated.
+     * @param withPlugins Additional plugins that should be loaded by the endpoint, eg: ['is.origo.jira.tempo-plugin','com.riadalabs.jira.plugins.insight' ]
+     * @param deployBranch , optional defaults to main, of repo https://github.com/eficode/remoteSpock
+     * @return true on successful create/updated
+     */
+    Boolean deploySpockEndpoint(ArrayList<String> withPlugins = [], String deployBranch = "main") {
+
+
+        log.info("Deploying/Updating Spock Rest Endpoint")
+        assert installGroovySources("https://github.com/eficode/remoteSpock", deployBranch): "Error fetching and/or installing remoteSpock sources"
+        log.info("\tSuccessfully updated endpoint script")
+
+        String endpointFilePath = "com/eficode/atlassian/jira/remotespock/remoteSpockEndpoint.groovy"
+
+        if (withPlugins) {
+
+            log.debug("\tCustomizing endpoint script, adding \"WithPlugins:\" " + withPlugins.join(", "))
+            ArrayList<String> withPluginStatements = withPlugins.collect { "@WithPlugin(\"$it\")" }
+            String endpointBody = getScriptrunnerFile(endpointFilePath)
+            endpointBody = endpointBody.replaceFirst(/\/\/@With.*/, withPluginStatements.join("\n"))
+            assert updateScriptrunnerFile(endpointBody, endpointFilePath): "Error customizing remoteSpockEndpoint.groovy in JIRA"
+            log.debug("\t\tFinished customizing endpoint script")
+        }
+
+
+        log.info("\tFinished creating/updating JIRA file: " + endpointFilePath)
+
+        if (!isSpockEndpointDeployed()) {
+            log.debug("\tCreating endpoint")
+            cached_IsSpockEndpointDeployed = createScriptedRestEndpoint(endpointFilePath, "", "Allows execution of Spock tests")
+            assert cached_IsSpockEndpointDeployed: "Error creating Spock Endpoint"
+            log.info("\tCreated endpoint")
+        } else {
+            log.info("\tEndpoint already exists")
+        }
+
+        return cached_IsSpockEndpointDeployed
+
+    }
+
+    /**
+     * Checks if the Spock test endpoint has been setup
+     * @param forceCheck , if true a cached value will be discarded and a new check will be run
+     * @return true if the endpoint is deployed.
+     */
+    Boolean isSpockEndpointDeployed(boolean forceCheck = false) {
+
+        if (forceCheck || !cached_IsSpockEndpointDeployed) {
+            cached_IsSpockEndpointDeployed = getScriptedRestEndpointId("remoteSpock")
+        }
+        return cached_IsSpockEndpointDeployed
+    }
+
+    /**
+     * Runs a spock test, presumes that deploySpockEndpoint() has been run.
+     * The class files are presumed to be in $JIRA_HOME/scripts
+     * @param fullClassName The full, canonical name of the class
+     * @param methodToRun Optional, a method in the class to run, if not given all test methods will be run.
+     * @param outputType The return type you´d like, see SpockOutputType-enum for acceptable types, default is StringSummary
+     * @param outputDir If given, the reports will be saved at this path on the JIRA server
+     * @return A map where the keys are report file names and the values are the file/report body, ex: [report.json : "....test failed...."]
+     */
+    Map runSpockTest(String fullClassName, String methodToRun = "", SpockOutputType outputType = SpockOutputType.StringSummary, String outputDir = null) {
+
+
+        markLogs("STARTING TEST: $fullClassName:$methodToRun", true) //Make sure we get a new log file with our mark
+
+        log.info("Startign test: $fullClassName:${methodToRun ?: "(All)"}")
+        HttpResponse<Map> response = rest.post("/rest/scriptrunner/latest/custom/remoteSpock/spock/class")
+                .body(["className": fullClassName, "methodName": methodToRun ?: null, "outputType" : outputType.name(), "outputDirPath":outputDir])
+                .contentType("application/json")
+                .cookie(acquireWebSudoCookies())
+                .connectTimeout(10 * 60000)
+                .asObject(Map)
+
+        markLogs("FINISHED TEST: $fullClassName:$methodToRun")
+        //Make sure our previous logfile gets marked with "Finished"
+        log.info("Test finished and REST endpoint returned status:" + response?.statusText)
+
+
+        assert response.status == 200: "Remote SPOCK endpoint returned unexpected status:" + response.status + ", response body:" + response.body?.toString()
+
+        return response.body
+
+    }
 
 
     /**
      * Uses ScriptRunners (versions from V6.55.0) feature "Test Runner" to execute JUnit and SPOCK tests
      * This functionality in SR is HIGHLY unstable and can easily crash the entire JIRA instance
+     * It also appears to have problems and severe delays when large codebases are in use.
      *
      * This functionality is also quite picky with file names and locations
      *  <li>Files should be placed in $JIRAHOME/scripts/</li>
@@ -1544,7 +1633,7 @@ final class JiraInstanceManagerRest {
      *
      * @return A SpockResult representing the test events
      */
-    SpockResult runSpockTest(String packageToRun, String classToRun = "", String methodToRun = "") {
+    SpockResult runSrSpockTest(String packageToRun, String classToRun = "", String methodToRun = "") {
 
         if (methodToRun) {
             assert classToRun != "": "classToRun must be supplied when methodToRun is supplied"
@@ -1588,7 +1677,7 @@ final class JiraInstanceManagerRest {
      * @return A map containing the raw result from SR
      */
     @Deprecated
-    LazyMap runSpockTestV6(String packageToRun, String classToRun = "", String methodToRun = "") {
+    LazyMap runSrSpockTestV6(String packageToRun, String classToRun = "", String methodToRun = "") {
 
 
         String testToRun = packageToRun
@@ -1663,6 +1752,8 @@ final class JiraInstanceManagerRest {
 
     }
 
+
+    /** --- Scriptrunner Actions --- **/
 
     /**
      * Delete a scriptrunner file
@@ -2214,7 +2305,7 @@ final class JiraInstanceManagerRest {
 
     /**
      * Installs Groovy sources from a Github repo.
-     * Requries that the sources be placed in $repoRoot/src/main/groovy/
+     * Requires that the sources be placed in $repoRoot/src/main/groovy/
      * @param githubRepoUrl ex: "https://github.com/eficode/InsightManager"
      * @param branch (Optional, default is master)
      * @return true on success
@@ -2229,7 +2320,7 @@ final class JiraInstanceManagerRest {
         assert unzipDir.mkdirs(): "Error creating temporary unzip dir:" + unzipDir.canonicalPath
 
         HttpResponse<File> downloadResponse = githubRest.get("$githubRepoUrl/archive/refs/heads/${branch}.zip").asFile((tempDir.canonicalPath.endsWith("/") ?: tempDir.canonicalPath + "/").toString() + "${branch}.zip")
-
+        assert downloadResponse.success: "Error downloading git repo from " + downloadResponse?.requestSummary?.rawPath
 
         File zipFile = new File(tempDir.canonicalPath, branch + ".zip")
         assert zipFile.canRead(): "Error reading downloaded zip:" + zipFile.canonicalPath
