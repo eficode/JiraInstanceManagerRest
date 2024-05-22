@@ -1542,7 +1542,8 @@ final class JiraInstanceManagerRest {
         assert installGroovySources("https://github.com/eficode/remoteSpock", deployBranch): "Error fetching and/or installing remoteSpock sources"
         log.info("\tSuccessfully updated endpoint script")
 
-        String endpointFilePath = "com/eficode/atlassian/jira/remotespock/remoteSpockEndpoint.groovy"//.replace("shaded/", "")
+        //Replacement is needed because shading adds shaded/
+        String endpointFilePath = "com/eficode/atlassian/jira/remotespock/remoteSpockEndpoint.groovy".replace("shaded/", "")
 
         if (withPlugins) {
 
