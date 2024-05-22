@@ -3,7 +3,7 @@
   <groupId>com.eficode.atlassian</groupId>
   <artifactId>jirainstancemanager</artifactId>
   <versioning>
-    <lastUpdated>20240522115433</lastUpdated>
+    <lastUpdated>20240522124746</lastUpdated>
     <snapshot>
       <localCopy>true</localCopy>
     </snapshot>
@@ -12,23 +12,23 @@
         <classifier>test-sources</classifier>
         <extension>jar</extension>
         <value>2.1.10-SNAPSHOT</value>
-        <updated>20240522115433</updated>
+        <updated>20240522124746</updated>
       </snapshotVersion>
       <snapshotVersion>
         <classifier>sources</classifier>
         <extension>jar</extension>
         <value>2.1.10-SNAPSHOT</value>
-        <updated>20240522115433</updated>
+        <updated>20240522124746</updated>
       </snapshotVersion>
       <snapshotVersion>
         <extension>jar</extension>
         <value>2.1.10-SNAPSHOT</value>
-        <updated>20240522115433</updated>
+        <updated>20240522124746</updated>
       </snapshotVersion>
       <snapshotVersion>
         <extension>pom</extension>
         <value>2.1.10-SNAPSHOT</value>
-        <updated>20240522115433</updated>
+        <updated>20240522124746</updated>
       </snapshotVersion>
     </snapshotVersions>
   </versioning>
