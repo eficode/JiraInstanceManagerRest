@@ -1542,7 +1542,8 @@ final class JiraInstanceManagerRest {
         assert installGroovySources("https://github.com/eficode/remoteSpock", deployBranch): "Error fetching and/or installing remoteSpock sources"
         log.info("\tSuccessfully updated endpoint script")
 
-        String endpointFilePath = "com/eficode/atlassian/jira/remotespock/remoteSpockEndpoint.groovy"
+        //Replacement is needed because shading adds shaded/
+        String endpointFilePath = "com/eficode/atlassian/jira/remotespock/remoteSpockEndpoint.groovy".replace("shaded/", "")
 
         if (withPlugins) {
 
@@ -1551,7 +1552,7 @@ final class JiraInstanceManagerRest {
             String endpointBody = getScriptrunnerFile(endpointFilePath)
             endpointBody = endpointBody.replaceFirst(/\/\/@With.*/, withPluginStatements.join("\n"))
             assert updateScriptrunnerFile(endpointBody, endpointFilePath): "Error customizing remoteSpockEndpoint.groovy in JIRA"
-            log.debug("\t\tFinished customizing endpoint script")
+            log.debug("\t\tFinished customizing endpoint script: " + endpointFilePath)
         }
 
 
@@ -1599,7 +1600,7 @@ final class JiraInstanceManagerRest {
 
         log.info("Startign test: $fullClassName:${methodToRun ?: "(All)"}")
         HttpResponse<Map> response = rest.post("/rest/scriptrunner/latest/custom/remoteSpock/spock/class")
-                .body(["className": fullClassName, "methodName": methodToRun ?: null, "outputType" : outputType.name(), "outputDirPath":outputDir])
+                .body(["className": fullClassName, "methodName": methodToRun ?: null, "outputType": outputType.name(), "outputDirPath": outputDir])
                 .contentType("application/json")
                 .cookie(acquireWebSudoCookies())
                 .connectTimeout(10 * 60000)
@@ -2251,6 +2252,13 @@ final class JiraInstanceManagerRest {
 
     }
 
+    boolean installGrapeDependency(String group, String module, String version, String repoUrl = "", String classifier = "") {
+
+
+        return installGrapeDependency(group, module, version, [repoUrl], classifier)
+
+    }
+
     /**
      * Installs a Grape dependency
      * Note clearCodeCaches() might needed to run after to apply changes
@@ -2261,15 +2269,18 @@ final class JiraInstanceManagerRest {
      * @param classifier
      * @return true on success
      */
-    boolean installGrapeDependency(String group, String module, String version, String repoUrl = "", String classifier = "") {
+    boolean installGrapeDependency(String group, String module, String version, ArrayList<String> repoUrls, String classifier = "") {
 
         String installScript = ""
 
-        if (repoUrl) {
+
+        repoUrls?.findAll { it != "" }?.eachWithIndex { repoUrl, index ->
+
             installScript += """
-            @GrabResolver(root='$repoUrl', name='$module-repo')
+            @GrabResolver(root='$repoUrl', name='$module-repo-$index')
             """
         }
+
 
         installScript += """
             @Grab(group='$group', module='$module', version='$version' ${classifier ? ", classifier = '$classifier'" : ""})
