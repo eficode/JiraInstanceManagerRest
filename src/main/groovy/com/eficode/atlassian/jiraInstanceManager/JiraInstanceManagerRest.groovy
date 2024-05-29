@@ -13,6 +13,9 @@ import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ScriptFieldBean
 import com.eficode.atlassian.jiraInstanceManager.beans.SpockResult
 import com.eficode.atlassian.jiraInstanceManager.beans.SrJob
+import com.eficode.atlassian.jiraInstanceManager.beans.UserRestBean
+import kong.unirest.core.HttpStatus
+import kong.unirest.core.PagedList
 import net.lingala.zip4j.ZipFile
 import groovy.io.FileType
 import groovy.json.JsonSlurper
@@ -1144,6 +1147,254 @@ final class JiraInstanceManagerRest {
         return srResponsive
 
     }
+
+    /** --- USER CRUD --- **/
+
+    /**
+     * Creates a new user
+     * @param name
+     * @param email
+     * @param displayName Optional, will default to $name
+     * @param password Optional if not given a random one will be set
+     * @param applicationKeys Optional, ex: ["jira-core", "jira-servicedesk"]
+     * @return
+     */
+    UserRestBean createUser(String name, String email, String displayName = "", String password = "", ArrayList<String> applicationKeys = []) {
+
+        Map requestMap = [
+                name           : name,
+                password       : (password ?: null),
+                emailAddress   : email,
+                displayName    : (displayName ?: name),
+                applicationKeys: applicationKeys
+        ]
+
+        HttpResponse<UserRestBean> createUserResponse
+
+        try {
+            createUserResponse = rest.post("/rest/api/2/user")
+                    .cookie(acquireWebSudoCookies())
+                    .contentType("application/json")
+                    .body(requestMap)
+                    .asObject(UserRestBean.class)
+
+            assert createUserResponse.status == HttpStatus.CREATED: "JIRA returned unexpected HTTP Status (${createUserResponse.status}) when creating user, got body:" + createUserResponse?.body
+            assert createUserResponse.parsingError.empty: "Error parsing returned data when creating user:" + createUserResponse.parsingError.get().asString()
+        } catch (Throwable ex) {
+            log.error("Error when creating user:" + ex.message)
+            throw ex
+        }
+        return createUserResponse.body
+
+    }
+
+    UserRestBean getUser(String userKey = "", String userName = "", Boolean includeDeleted = false, Boolean includeGroups = false, Boolean includeAppRoles = false) {
+
+        HttpResponse<UserRestBean> getUserResponse
+
+        try {
+            ArrayList<String> expandParameters = []
+            !includeGroups ?: expandParameters.add("groups")
+            !includeAppRoles ?: expandParameters.add("applicationRoles")
+
+            getUserResponse = rest.get("/rest/api/2/user")
+                    .cookie(acquireWebSudoCookies())
+                    .queryString(
+                            [
+                                    username      : userName,
+                                    key           : userKey,
+                                    includeDeleted: includeDeleted,
+                                    expand        : expandParameters.join(",")
+                            ].findAll { it.value }
+                    ).asObject(UserRestBean.class)
+
+
+            assert getUserResponse.status == HttpStatus.OK || getUserResponse.status == HttpStatus.NOT_FOUND: "JIRA returned unexpected HTTP Status (${getUserResponse.status}) when getting user, got body:" + getUserResponse?.body
+            assert getUserResponse.parsingError.empty: "Error parsing returned data when getting user:" + getUserResponse.parsingError.get().asString()
+        } catch (Throwable ex) {
+            log.error("Error when getting user:" + ex.message)
+            throw ex
+        }
+
+        if (getUserResponse.status == HttpStatus.NOT_FOUND) {
+            return null
+        } else {
+            return getUserResponse.body
+        }
+
+
+    }
+
+
+    Boolean deleteUser(String userKey = "", String userName = "") {
+
+        log.info("Deleting user ${userKey ?: userName}")
+        HttpResponse<Empty> deleteUserResponse
+        assert userKey || userName: "You must supply either userKey or username"
+
+        try {
+
+            deleteUserResponse = rest.delete("/rest/api/2/user")
+                    .cookie(acquireWebSudoCookies())
+                    .queryString(
+                            [
+                                    username: userName,
+                                    key     : userKey
+                            ].findAll { it.value }
+                    ).asEmpty()
+
+
+            assert deleteUserResponse.status == HttpStatus.NO_CONTENT: "JIRA returned unexpected HTTP Status (${deleteUserResponse.status}) when deleting user, got body:" + deleteUserResponse?.body
+            assert deleteUserResponse.parsingError.empty: "Error parsing returned data when deleting user:" + deleteUserResponse.parsingError.get().asString()
+        } catch (Throwable ex) {
+            log.error("Error when deleting user:" + ex.message)
+            throw ex
+        }
+
+        log.info("\tSuccessfully deleted user ${userKey ?: userName}")
+        return true
+
+    }
+
+
+    /**
+     * Searches for matching users
+     * @param user username, name or e-mail
+     * @param includeActive
+     * @param includeInactive
+     * @return
+     */
+    ArrayList<UserRestBean> searchForUsers(String user, Boolean includeActive = true, Boolean includeInactive = false) {
+
+
+        log.info("Searching for users matching  $user")
+
+        ArrayList<String> includeParameters = []
+        !includeActive ?: includeParameters.add("includeActive")
+        !includeInactive ?: includeParameters.add("includeInactive")
+
+        Integer startAt = 0
+        Integer pageSize = 10
+
+
+        PagedList pagedList = rest.get("/rest/api/2/user/search").queryString([username: user, includeActive: includeActive, includeInactive: includeInactive, startAt: startAt, maxResults: pageSize]).asPaged({
+            it.asObject(new GenericType<ArrayList<UserRestBean>>() {})
+        }, {
+            if (!it.body) {
+                log.debug("\tNo more matches")
+                return null
+            }
+            log.debug("\tGetting next page of users")
+            startAt = startAt + pageSize
+            String nextUrl = rest.get("/rest/api/2/user/search").queryString([username: user, includeActive: includeActive, includeInactive: includeInactive, startAt: startAt, maxResults: pageSize]).url
+            log.trace("\tUsing url:" + nextUrl)
+            return nextUrl
+        })
+
+        assert pagedList.every { it.status == HttpStatus.OK }: "Error during paged search for users"
+        ArrayList<UserRestBean> users = pagedList.collect { it.body }.flatten()
+
+        log.info("\tGot a total of ${user.size()} matching users")
+        return users
+    }
+
+    /** --- Group CRUD --- **/
+
+    Boolean createGroup(String groupName) {
+
+
+        log.info("Creating group:" + groupName)
+        Map requestMap = [
+                name: groupName
+        ]
+
+        HttpResponse<Map> createGroupResponse = null
+
+        try {
+            createGroupResponse = rest.post("/rest/api/2/group")
+                    .cookie(acquireWebSudoCookies())
+                    .contentType("application/json")
+                    .body(requestMap)
+                    .asObject(Map.class)
+
+            assert createGroupResponse.status == HttpStatus.CREATED: "JIRA returned unexpected HTTP Status (${createGroupResponse.status}) when creating group, got body:" + createGroupResponse?.body
+            assert createGroupResponse.parsingError.empty: "Error parsing returned data when creating group:" + createGroupResponse.parsingError.get().asString()
+        } catch (Throwable ex) {
+            log.error("Error when creating group:" + ex.message)
+            log.error("\tGot Body:" + createGroupResponse?.body)
+            return false
+        }
+
+        return createGroupResponse?.body?.get("name", null) == groupName
+
+    }
+
+    Boolean groupExists(String groupName) {
+
+        HttpResponse<Map> response = null
+
+        try {
+            response = rest.get("/rest/api/2/group/member")
+                    .cookie(acquireWebSudoCookies())
+                    .queryString("groupname", groupName)
+                    .asObject(Map.class)
+
+        } catch (Throwable ex) {
+            log.error("Error when getting group:" + ex.message)
+            log.error("\tGot Body:" + response?.body)
+            return false
+        }
+
+        if (response.status == HttpStatus.NOT_FOUND) {
+            return false
+        } else if (response.status == HttpStatus.OK) {
+            return true
+        } else {
+            throw new InputMismatchException("Error parsing response when querying for group $groupName")
+        }
+
+    }
+
+    Boolean addUserToGroup(String groupName, UserRestBean user) {
+        return addUserToGroup(groupName, user.name)
+    }
+    Boolean addUserToGroup(String groupName, String username) {
+
+        log.info("Adding user $username to group $groupName")
+        Map requestMap = [
+                name: username
+        ]
+
+        HttpResponse<String> response = null
+
+        try {
+            response = rest.post("/rest/api/2/group/user")
+                    .cookie(acquireWebSudoCookies())
+                    .contentType("application/json")
+                    .queryString("groupname", groupName)
+                    .body(requestMap)
+                    .asString()
+
+
+            assert response.parsingError.empty: "Error parsing returned data when adding user to group:" + response.parsingError.get().asString()
+        } catch (Throwable ex) {
+            log.error("Error when adding user to group:" + ex.message)
+            log.error("\tGot Body:" + response?.body)
+            return false
+        }
+
+        if (response.status == HttpStatus.CREATED) {
+            return true
+        } else if (response.status == HttpStatus.BAD_REQUEST) {
+            log.warn("Error adding user $username to group $groupName, JIRA returned:" + response.body)
+            return false
+        } else {
+            throw new InputMismatchException("Error parsing response when adding user $username to group $groupName")
+        }
+
+
+    }
+
 
     /** --- Project CRUD --- **/
 

@@ -9,6 +9,8 @@ import com.eficode.atlassian.jiraInstanceManager.beans.ObjectSchemaBean
 import com.eficode.atlassian.jiraInstanceManager.beans.ProjectBean
 import com.eficode.atlassian.jiraInstanceManager.beans.SpockResult
 import com.eficode.atlassian.jiraInstanceManager.beans.SrJob
+import com.eficode.atlassian.jiraInstanceManager.beans.UserRestBean
+import com.eficode.devstack.deployment.impl.JsmDevDeployment
 import com.eficode.devstack.deployment.impl.JsmH2Deployment
 import de.gesellix.docker.remote.api.ContainerState
 import groovy.io.FileType
@@ -34,8 +36,9 @@ class JiraInstanceManagerRestSpec extends Specification {
     @Shared
     static String baseSrVersion = "latest"
 
+
     @Shared
-    static JsmH2Deployment jsmDep = new JsmH2Deployment(baseUrl)
+    static JsmDevDeployment jsmDevDep
 
     @Shared
     static boolean reuseContainer = true //If true and container is already setup, it will be re-used.
@@ -59,30 +62,35 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         Unirest.config().defaultBaseUrl(baseUrl).setDefaultBasicAuth(restAdmin, restPw)
 
+        jsmDevDep = new JsmDevDeployment.Builder(baseUrl, jsmLicense, [])
+                .setJsmJvmDebugPort("5005")
+                .enableJsmDood()
+                .addAppToInstall(MarketplaceApp.getScriptRunnerVersion(baseSrVersion).getDownloadUrl(), srLicense)
+                .addAppToInstall("https://marketplace.atlassian.com/download/apps/1211542/version/302030")
+                .useSnapshotIfAvailable()
+                .snapshotAfterCreation()
+                .build()
 
-        jsmDep.setJiraLicense(jsmLicense)
-        jsmDep.appsToInstall.put(MarketplaceApp.getScriptRunnerVersion(baseSrVersion).getDownloadUrl(), srLicense)
-        if (!jsmDep.jsmContainer.created) {
-            jsmDep.jsmContainer.enableJvmDebug()
-        }
-
-        jsmDep.jsmContainer.enableAppUpload()
 
         if (!(reuseContainer && jsmDep?.jsmContainer?.status() == ContainerState.Status.Running)) {
 
             //Stop and remove if already existing
-            jsmDep.stopAndRemoveDeployment()
+            jsmDevDep.stopAndRemoveDeployment()
 
             //Start and wait for the deployment
-            jsmDep.setupDeployment()
+            jsmDevDep.setupDeployment()
             jsmDep.jiraRest.waitForJiraToBeResponsive()
 
-            assert jiraInstanceManagerRest.installScriptRunner(srLicense, baseSrVersion): "Error installing SR version:" + baseSrVersion
+            //assert jiraInstanceManagerRest.installScriptRunner(srLicense, baseSrVersion): "Error installing SR version:" + baseSrVersion
 
         }
 
         sudoCookies = new JiraInstanceManagerRest(restAdmin, restPw, baseUrl).acquireWebSudoCookies()
         assert sudoCookies && jsmDep.jsmContainer.status() == ContainerState.Status.Running
+    }
+
+    JsmH2Deployment getJsmDep(){
+        return jsmDevDep.jsmDeployment
     }
 
     JiraInstanceManagerRest getJiraInstanceManagerRest() {
@@ -361,7 +369,6 @@ class JiraInstanceManagerRestSpec extends Specification {
         log.info("\tUsing SR version:" + srVersionNumber)
 
 
-
         if (jim.isSpockEndpointDeployed(true)) {
             log.info("\tRemoteSpock-endpoint is already deployed, removing it before test")
             jim.deleteScriptedRestEndpointId(jim.getScriptedRestEndpointId("remoteSpock"))
@@ -371,13 +378,11 @@ class JiraInstanceManagerRestSpec extends Specification {
         }
 
         expect:
-        assert !jim.isSpockEndpointDeployed(true) : "isSpockEndpointDeployed() Reports RemoteSpock as deployed even though it isn't"
-        assert jim.deploySpockEndpoint(["com.riadalabs.jira.plugins.insight"]) : "Error deploying SpockRemote endpoint"
-        assert jim.isSpockEndpointDeployed(true) : "isSpockEndpointDeployed() Reports RemoteSpock as NOT deployed even though it should be"
-        assert jim.getScriptrunnerFile(endpointFilePath).readLines().any {it.startsWith("@WithPlugin(\"com.riadalabs.jira.plugins.insight\")")} : "The deployed endpoint does not appear to have the specified @WithPlugin statement"
+        assert !jim.isSpockEndpointDeployed(true): "isSpockEndpointDeployed() Reports RemoteSpock as deployed even though it isn't"
+        assert jim.deploySpockEndpoint(["com.riadalabs.jira.plugins.insight"]): "Error deploying SpockRemote endpoint"
+        assert jim.isSpockEndpointDeployed(true): "isSpockEndpointDeployed() Reports RemoteSpock as NOT deployed even though it should be"
+        assert jim.getScriptrunnerFile(endpointFilePath).readLines().any { it.startsWith("@WithPlugin(\"com.riadalabs.jira.plugins.insight\")") }: "The deployed endpoint does not appear to have the specified @WithPlugin statement"
         log.info("\tSuccessfully deployed endpoint")
-
-
 
 
         when: "When running the main test as classToRun and methodToRun"
@@ -398,7 +403,6 @@ class JiraInstanceManagerRestSpec extends Specification {
         then:
         spockClassOut.contains(" 1 tests successful")
         spockMethodOut.contains(" 1 tests successful")
-
 
 
         cleanup:
@@ -1129,6 +1133,95 @@ class JiraInstanceManagerRestSpec extends Specification {
 
         cleanup:
         jira.deleteProject(projectKey)
+
+    }
+
+
+    def "Test group CRUD"() {
+
+        setup:
+        JiraInstanceManagerRest jim = getJiraInstanceManagerRest()
+
+
+
+
+        String randomNr = System.nanoTime().toString().takeRight(5)
+        String groupPrefix = "SpockCrudGroup"
+        String groupName = groupPrefix + randomNr
+
+        UserRestBean spockUser = jim.createUser("SpockMember$randomNr", "asd@asd.com")
+
+
+        expect: "Creating group"
+        jim.createGroup(groupName)
+        !jim.createGroup(groupName) //Creating a duplicate group should not throw error, only return false
+        jim.groupExists(groupName)
+        jim.addUserToGroup(groupName, spockUser)
+        !jim.addUserToGroup(groupName, spockUser) //Adding a duplicate user to a group should not throw error, only return false
+
+    }
+
+
+
+    def "Test user CRUD"() {
+
+        setup:
+        JiraInstanceManagerRest jim = getJiraInstanceManagerRest()
+
+
+
+
+        String randomNr = System.nanoTime().toString().takeRight(5)
+        String userPrefix = "SpockCrudUser"
+        String userName = userPrefix + randomNr
+
+        //Delete any pre-existing users
+        jim.searchForUsers(userPrefix).each {
+            jim.deleteUser(it.key)
+        }
+
+        when: "Creating a user with all parameters"
+        UserRestBean userRestBean = jim.createUser(userName.toString(), "spock@startrek.com", "Mr Spock", "All makt åt Tengil", ["jira-servicedesk"])
+
+        then: "The returned bean should have the expected fields set"
+        userRestBean.name == userName
+        userRestBean.emailAddress == "spock@startrek.com"
+        userRestBean.displayName == "Mr Spock"
+
+        expect: "Expect getUser() to return the same values"
+        userRestBean.key == jim.getUser(userRestBean.key).key
+        userRestBean.displayName == jim.getUser(userRestBean.key).displayName
+        userRestBean.emailAddress == jim.getUser(userRestBean.key).emailAddress
+        userRestBean.key == jim.getUser("",userRestBean.name).key
+        userRestBean.displayName == jim.getUser("",userRestBean.name).displayName
+        userRestBean.emailAddress == jim.getUser("",userRestBean.name).emailAddress
+
+        //"Expect getUser() to optionally return groups and application roles"
+        jim.getUser(userRestBean.key, "", false, false, true).applicationRoles == ["jira-servicedesk"]
+        jim.getUser(userRestBean.key, "", false, true, false).groups == ["jira-servicedesk-users"]
+        jim.searchForUsers(userRestBean.name).size() == 1
+
+        //When Deleting the user:
+        jim.deleteUser(userRestBean.key) //True should be returned
+        !jim.getUser(userRestBean.key) //User should not be found
+        jim.getUser(userRestBean.key, "", true) //User should be found now that we query for even deleted users
+
+
+        when: "Creating several users"
+        (0..22).each{ index ->
+            assert jim.createUser(userName + "-copy-$index", "spock@startrek.com", "Mr Spock $index") : "Error creating test user"
+        }
+
+        then: "Search should find them all"
+        jim.searchForUsers(userName + "-copy-").size() == 23
+
+
+        cleanup:
+        jim.searchForUsers(userName + "-copy-").each {jim.deleteUser(it.key)}
+        jim.searchForUsers(userPrefix).each {jim.deleteUser(it.key)}
+
+
+
 
     }
 
