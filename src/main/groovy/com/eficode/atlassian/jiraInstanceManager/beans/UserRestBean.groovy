@@ -4,6 +4,8 @@ import com.fasterxml.jackson.annotation.JsonAnyGetter
 import com.fasterxml.jackson.annotation.JsonAnySetter
 import com.fasterxml.jackson.annotation.JsonIgnore
 import com.fasterxml.jackson.annotation.JsonSetter
+import org.slf4j.Logger
+import org.slf4j.LoggerFactory
 
 class UserRestBean {
 
@@ -24,18 +26,37 @@ class UserRestBean {
     public String expand
     public String lastLoginTime
 
+    @JsonIgnore
+    static Logger log = LoggerFactory.getLogger(UserRestBean.class)
+
 
     @JsonIgnore
     private Map<String, Object> additionalProperties = new LinkedHashMap<String, Object>()
 
     @JsonSetter("groups")
     void setGroup(Map rawMap) {
-        this.groups = (rawMap.get("items") as Map)?.collect {it."name"}
+        try {
+            ArrayList<Map> items = rawMap.get("items", null) as ArrayList<Map>
+            ArrayList<String> groupNames = items?.collect {it.get("name", null)}
+            this.groups = groupNames
+        }catch (Throwable ex) {
+            log.error("Error parsing groups based on raw input:" + rawMap)
+            throw ex
+        }
+
     }
 
     @JsonSetter("applicationRoles")
     void setApplicationRoles(Map rawMap) {
-        this.applicationRoles = (rawMap.get("items") as Map)?.collect {it."key"}
+
+        try {
+            ArrayList<Map> items = rawMap.get("items", null) as ArrayList<Map>
+            ArrayList<String> roleNames = items?.collect {it.get("key", null)}
+            this.applicationRoles = roleNames
+        }catch (Throwable ex) {
+            log.error("Error parsing applicationRoles based on raw input:" + rawMap)
+            throw ex
+        }
 
     }
 
